@@ -70,7 +70,8 @@ class _TimedMixin:
 class HFClauseModel(_TimedMixin):
     def __init__(self, model_id: str, adapter_id: str | None = None, load_in_4bit: bool = False,
                  system_prompt: str = SYSTEM_PROMPT, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
-                 batch_size: int = 8, device_map: str = "auto", token: str | None = None):
+                 batch_size: int = 8, device_map: str | None = "auto", token: str | None = None,
+                 dtype=None):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -80,7 +81,9 @@ class HFClauseModel(_TimedMixin):
         if self.tok.pad_token is None:
             self.tok.pad_token = self.tok.eos_token
         kw: dict = {"device_map": device_map, "token": token}
-        if load_in_4bit:
+        if dtype is not None and not load_in_4bit:
+            kw["dtype"] = dtype
+        elif load_in_4bit:
             from transformers import BitsAndBytesConfig
             kw["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4",

@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import os
 
+import spaces  # no-op outside ZeroGPU
+import torch
+
 import gradio as gr
 
 from smallprint.document import build_report, split_clauses
@@ -13,22 +16,21 @@ from smallprint.schema import parse_output
 
 MODEL_ID = os.environ.get("SMALLPRINT_MODEL", "mukeshkbj/smallprint-tiny-aya-water-3b")
 MAX_CLAUSES = int(os.environ.get("SMALLPRINT_MAX_CLAUSES", "250"))
+MAX_GPU_SECONDS = int(os.environ.get("SMALLPRINT_MAX_GPU_SECONDS", "120"))
 
-try:  # ZeroGPU on Hugging Face Spaces; plain function elsewhere
-    import spaces
-    gpu = spaces.GPU(duration=120)
-except ImportError:  # pragma: no cover
-    def gpu(fn):
-        return fn
-
-_model: HFClauseModel | None = None
+# Load once at start-up. On ZeroGPU `.to("cuda")` here only registers the weights;
+# the GPU is attached inside the @spaces.GPU call. bf16 is native on ZeroGPU hardware.
+_device = "cuda" if torch.cuda.is_available() else "cpu"
+MODEL = HFClauseModel(MODEL_ID, batch_size=16, device_map=None, token=os.environ.get("HF_TOKEN"),
+                      dtype=torch.bfloat16 if _device == "cuda" else torch.float32)
+MODEL.model.to(_device)
 
 
-def get_model() -> HFClauseModel:
-    global _model
-    if _model is None:
-        _model = HFClauseModel(MODEL_ID, batch_size=16, token=os.environ.get("HF_TOKEN"))
-    return _model
+def gpu_seconds(text: str) -> int:
+    """Ask ZeroGPU for roughly what this document needs (about 0.4 s per clause), so
+    short policies don't reserve, or get refused for, a full two minutes of quota."""
+    n = min(len(split_clauses(text or "")), MAX_CLAUSES)
+    return max(15, min(MAX_GPU_SECONDS, 15 + int(0.4 * n)))
 
 
 EXAMPLE = """Welcome to Example Cloud. These Terms apply to your use of our storage service.
@@ -48,12 +50,12 @@ EXAMPLE = """Welcome to Example Cloud. These Terms apply to your use of our stor
 7. Support. You can contact our support team by email and we aim to reply within two working days."""
 
 
-@gpu
+@spaces.GPU(duration=gpu_seconds)
 def analyse(text: str):
-    clauses = split_clauses(text)[:MAX_CLAUSES]
+    clauses = split_clauses(text or "")[:MAX_CLAUSES]
     if not clauses:
         return "Paste some terms or a privacy policy first.", {}
-    raws = get_model()(clauses)
+    raws = MODEL(clauses)
     report = build_report(clauses, [parse_output(r) for r in raws])
     return report.to_markdown(), report.to_dict()
 

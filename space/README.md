@@ -5,6 +5,7 @@ colorFrom: gray
 colorTo: yellow
 sdk: gradio
 app_file: app.py
+python_version: "3.12"
 pinned: false
 license: cc-by-nc-4.0
 short_description: Flags potentially unfair terms in ToS and privacy policies
