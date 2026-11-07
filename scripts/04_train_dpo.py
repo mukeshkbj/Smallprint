@@ -79,7 +79,7 @@ def main() -> None:
         lora_target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         quantization={"load_in_4bit": True, "bnb_4bit_compute_dtype": sft.compute_dtype(),
                       "bnb_4bit_quant_type": "nf4"},
-        precision="bf16" if sft.compute_dtype() == "bfloat16" else "fp16",  # T4 has no bf16
+        precision="bf16" if sft.compute_dtype() == "bfloat16" else "fp32",  # no native bf16 (T4): skip AMP; 4-bit layers still compute in fp16
         logging_steps=10,
         seed=cfg["seed"],
     )
