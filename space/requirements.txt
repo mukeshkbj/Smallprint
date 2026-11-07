@@ -1,0 +1,6 @@
+smallprint @ git+https://github.com/mukeshkbj/smallprint
+transformers>=5.15
+accelerate
+torch
+spaces
+gradio>=5

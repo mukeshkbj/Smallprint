@@ -1,0 +1,194 @@
+import json
+
+from smallprint.data import (
+    Clause, balance, companies_overlapping, decontaminate, from_lexglue, from_multilingual, sft_record,
+)
+from smallprint.document import build_report, split_clauses
+from smallprint.grounding import is_verbatim
+from smallprint.labels import ALL_KEYS, LEXGLUE_KEYS, normalise_category
+from smallprint.metrics import Gold, clause_metrics, comparison_table
+from smallprint.prompts import SYSTEM_PROMPT
+from smallprint.roi import ClosedAPI, SelfHosted, Workload, monthly, to_markdown
+from smallprint.schema import parse_output, target_json
+from smallprint.teacher import annotate_one, template_annotation
+
+CLAUSE = "We may terminate your account at any time, without notice, for any reason."
+
+
+# ---------------------------------------------------------------- labels / prompt
+def test_label_sets():
+    assert LEXGLUE_KEYS[0] == "limitation_of_liability" and LEXGLUE_KEYS[7] == "arbitration"
+    assert len(LEXGLUE_KEYS) == 8 and len(ALL_KEYS) == 9
+    assert normalise_category("Choice of law") == "choice_of_law"
+    assert normalise_category("ter") == "unilateral_termination"
+    assert normalise_category("nonsense") is None
+    for k in ALL_KEYS:
+        assert k in SYSTEM_PROMPT
+
+
+# ---------------------------------------------------------------- schema
+def test_parse_valid_and_fenced():
+    raw = '```json\n{"unfair": true, "categories": ["unilateral_termination"], "evidence": "We may terminate your account", "explanation": "They can close it."}\n```'
+    p = parse_output(raw)
+    assert p.valid and p.flagged and p.label_set == {"unilateral_termination"}
+
+
+def test_parse_inconsistent_is_invalid():
+    p = parse_output('{"unfair": false, "categories": ["arbitration"], "evidence": "", "explanation": ""}')
+    assert p.parsed_json and not p.valid and not p.flagged
+    p = parse_output('{"unfair": true, "categories": [], "evidence": "x", "explanation": "y"}')
+    assert not p.valid
+
+
+def test_parse_garbage_and_prefix_text():
+    assert not parse_output("I think this is unfair.").parsed_json
+    p = parse_output('Sure! {"unfair": false, "categories": [], "evidence": "", "explanation": ""} hope that helps')
+    assert p.valid and not p.flagged
+
+
+def test_target_json_roundtrip():
+    t = target_json(True, ["arbitration"], "binding arbitration", "Disputes go to arbitration.")
+    assert parse_output(t).valid
+    fair = json.loads(target_json(False, ["arbitration"], "x", "y"))
+    assert fair == {"unfair": False, "categories": [], "evidence": "", "explanation": ""}
+
+
+# ---------------------------------------------------------------- grounding
+def test_verbatim():
+    assert is_verbatim("terminate your account at any time", CLAUSE)
+    assert is_verbatim("TERMINATE  your account", CLAUSE)            # case + whitespace
+    assert is_verbatim("We may terminate ... for any reason", CLAUSE)  # ellipsis segments, in order
+    assert not is_verbatim("for any reason ... We may terminate", CLAUSE)
+    assert not is_verbatim("delete your account", CLAUSE)
+    assert not is_verbatim("we", CLAUSE)                              # too short to count
+    assert is_verbatim("“We may terminate”", 'He said "We may terminate" it')
+
+
+# ---------------------------------------------------------------- data mapping
+def test_from_lexglue():
+    cs = from_lexglue([{"text": CLAUSE, "labels": [1]}, {"text": "Hello there friend.", "labels": []}], "train")
+    assert cs[0].unfair and cs[0].categories == ["unilateral_termination"]
+    assert not cs[1].unfair and cs[1].categories == []
+
+
+def test_from_multilingual_levels():
+    rows = [
+        {"language": "de", "company": "Acme", "line_number": 3, "sentence": "Wir koennen Ihr Konto jederzeit kuendigen.",
+         "unfairness_level": "potentially_unfair", "ter": True, "a": False},
+        {"language": "en", "company": "Acme", "line_number": 4, "sentence": "These terms are governed by the laws of your country.",
+         "unfairness_level": "clearly_fair", "law": True},
+        {"language": "it", "company": "Acme", "line_number": 5, "sentence": "Benvenuti.", "unfairness_level": "untagged"},
+        {"language": "pl", "company": "Acme", "line_number": 6, "sentence": "Spory rozstrzyga arbitraz.", "unfairness_level": 3, "a": 1},
+    ]
+    cs = from_multilingual(rows, "train")
+    assert cs[0].unfair and cs[0].categories == ["unilateral_termination"] and cs[0].lang == "de"
+    assert not cs[1].unfair and cs[1].categories == []   # topic present but fair
+    assert not cs[2].unfair
+    assert cs[3].unfair and cs[3].severity == "clearly_unfair" and cs[3].categories == ["arbitration"]
+
+
+def test_decontaminate_exact_and_near():
+    ref = [Clause("t1", "We may change these terms at any time without notice to you.", "en", "lexglue", "test", True, ["unilateral_change"])]
+    train = [
+        Clause("a", "We may change these terms at any time without notice to you!", "en", "lexglue", "train", True),
+        Clause("b", "We may change these terms at any time without any notice to you.", "en", "lexglue", "train", True),
+        Clause("c", "You can download your data from the settings page.", "en", "lexglue", "train", False),
+    ]
+    kept, dropped = decontaminate(train, ref)
+    assert [c.id for c in kept] == ["c"] and {c.id for c in dropped} == {"a", "b"}
+
+
+def test_companies_overlapping():
+    ref = [Clause(f"r{i}", f"Unique clause number {i} about the service and its terms.", "en", "lexglue", "test", False) for i in range(5)]
+    ml = [Clause(f"m{i}", f"Unique clause number {i} about the service and its terms.", "en", "claudette_ml", "train", False, company="Leaky") for i in range(3)]
+    ml += [Clause(f"n{i}", f"Something totally different {i} goes here in this line.", "en", "claudette_ml", "train", False, company="Clean") for i in range(3)]
+    assert companies_overlapping(ml, ref) == {"Leaky"}
+
+
+def test_balance_keeps_all_unfair():
+    cs = [Clause(f"u{i}", "x", "en", "lexglue", "train", True, ["arbitration"]) for i in range(10)]
+    cs += [Clause(f"f{i}", "y", "en", "lexglue", "train", False) for i in range(100)]
+    out = balance(cs, fair_per_unfair=2.0)
+    assert sum(c.unfair for c in out) == 10 and sum(not c.unfair for c in out) == 20
+
+
+def test_sft_record_shape():
+    c = Clause("x", CLAUSE, "en", "lexglue", "train", True, ["unilateral_termination"])
+    r = sft_record(c, "terminate your account at any time", "They can close your account.")
+    assert r["instruction"] == CLAUSE and r["source_chunk"] == CLAUSE and r["system_prompt"] == SYSTEM_PROMPT
+    assert parse_output(r["output"]).valid
+
+
+# ---------------------------------------------------------------- teacher
+def test_teacher_retries_then_accepts():
+    c = Clause("x", CLAUSE, "en", "lexglue", "train", True, ["unilateral_termination"])
+    replies = iter([
+        '{"evidence": "we can delete you", "explanation": "x"}',               # not verbatim -> retry
+        '{"evidence": "terminate your account at any time", "explanation": "They can close your account whenever they want."}',
+    ])
+    a = annotate_one(c, lambda prompt: next(replies))
+    assert a["annotation_source"] == "teacher" and a["evidence"] == "terminate your account at any time"
+
+
+def test_teacher_falls_back_to_template():
+    c = Clause("x", CLAUSE, "en", "lexglue", "train", True, ["unilateral_termination"])
+    a = annotate_one(c, lambda prompt: "not json")
+    assert a == template_annotation(c) and is_verbatim(a["evidence"], CLAUSE)
+
+
+# ---------------------------------------------------------------- metrics
+def _p(unfair, cats=(), ev=""):
+    return parse_output(target_json(unfair, list(cats), ev, "e" if unfair else ""))
+
+
+def test_clause_metrics():
+    golds = [
+        Gold(CLAUSE, True, frozenset({"unilateral_termination"})),
+        Gold("Disputes are settled by binding arbitration.", True, frozenset({"arbitration"})),
+        Gold("You can export your data.", False, frozenset()),
+        Gold("We use cookies.", False, frozenset()),
+    ]
+    preds = [
+        _p(True, ["unilateral_termination"], "terminate your account"),
+        _p(False),                                              # miss
+        _p(True, ["content_removal"], "this is not in the text"),  # false alarm, fabricated quote
+        parse_output("garbage"),                                # invalid -> fair
+    ]
+    m = clause_metrics(golds, preds, LEXGLUE_KEYS)
+    assert m["json_valid_rate"] == 0.75
+    assert m["unfair_precision"] == 0.5 and m["unfair_recall"] == 0.5
+    assert m["false_alarm_rate"] == 0.5 and m["miss_rate"] == 0.5
+    assert m["evidence_grounding_rate"] == 0.5
+    assert m["per_category"]["unilateral_termination"]["f1"] == 1.0
+    assert m["per_category"]["arbitration"]["f1"] == 0.0
+    assert abs(m["category_macro_f1"] - 0.5) < 1e-9   # macro over categories with support
+    assert "Unfair-term F1" in comparison_table({"base": m, "tuned": m})
+
+
+# ---------------------------------------------------------------- document
+def test_split_clauses():
+    text = ("1. Terms. By using the service, e.g. the app, you agree to these terms. We may change them at any time.\n\n"
+            "2. Disputes. All disputes will be resolved by binding arbitration in San Francisco, CA. Ok.")
+    parts = split_clauses(text)
+    assert any("e.g. the app" in p for p in parts)               # no split on abbreviation
+    assert any(p.startswith("We may change them") for p in parts)
+    assert any("binding arbitration" in p for p in parts)
+    assert all(len(p.split()) >= 4 for p in parts)
+
+
+def test_build_report():
+    clauses = [CLAUSE, "You can export your data at any time from settings."]
+    outs = [_p(True, ["unilateral_termination"], "terminate your account at any time"), _p(False)]
+    rep = build_report(clauses, outs)
+    assert len(rep.findings) == 1 and rep.findings[0].evidence_verified
+    md = rep.to_markdown()
+    assert "Unilateral termination" in md and "not legal advice" in md
+
+
+# ---------------------------------------------------------------- roi
+def test_roi():
+    w = Workload(1000, 100, 450, 20)
+    r = monthly(w, ClosedAPI("X", 1.0, 2.0, "src"), SelfHosted("T4", 0.5, 1000, "src"))
+    assert abs(r["closed_api_usd"] - (100000 * 450 / 1e6 * 1 + 100000 * 20 / 1e6 * 2)) < 1e-9
+    assert abs(r["self_hosted_gpu_hours"] - (100000 * 20 / 1000 / 3600)) < 1e-9
+    assert "on device" in to_markdown(w, ClosedAPI("X", 1, 2, "s"), SelfHosted("T4", 0.5, 1000, "s"), r)

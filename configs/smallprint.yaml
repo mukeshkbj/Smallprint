@@ -1,0 +1,82 @@
+# Smallprint pipeline config. Override any key with SMALLPRINT_<SECTION>__<KEY>,
+# e.g. SMALLPRINT_HUB__USER=yourname
+
+seed: 42
+
+hub:
+  user: null                    # your Hugging Face username (must match the hackathon registration)
+  private: false                # the hackathon requires public models and datasets
+  model_repo: smallprint-tiny-aya-water-3b
+  sft_adapter_repo: smallprint-tiny-aya-water-3b-sft-lora
+  dataset_repo: smallprint-clauses-4lang
+  dpo_dataset_repo: smallprint-preferences
+  eval_dataset_repo: smallprint-eval
+  space_repo: smallprint-demo
+
+model:
+  base: CohereLabs/tiny-aya-water      # gated: accept the licence on the model page first
+  max_seq_length: 1024                 # system prompt (~350 tokens) + clause + JSON answer
+
+data:
+  lexglue_repo: coastalcph/lex_glue
+  lexglue_config: unfair_tos
+  multilingual_repo: joelniklaus/online_terms_of_service
+  fair_per_unfair: 2.0                 # training balance only; test sets keep their natural distribution
+  decontam_similarity: 0.85            # token-level similarity ratio for near-duplicate removal
+  company_overlap_share: 0.2
+  val_fraction: 0.05
+  work_dir: data
+
+teacher:                               # writes evidence + explanation for unfair training clauses
+  model: cohere_chat/c4ai-aya-expanse-32b   # any LiteLLM model string; null = template fallback only
+  api_base: null
+  concurrency: 8
+
+judge:                                 # CuratorKIT hallucination gate on teacher explanations
+  model: cohere_chat/c4ai-aya-expanse-8b    # null = skip the LLM judge (verbatim-quote check still applies)
+  api_base: null
+  threshold: 0.7
+
+sft:
+  backend: trl
+  epochs: 2
+  batch_size: 4
+  grad_accum: 4
+  learning_rate: 2.0e-4
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  load_in_4bit: true                   # QLoRA so it fits a free Colab/Kaggle T4
+  output_dir: runs/sft
+
+dpo:
+  mine_from_train: 3000                # on-policy negatives: run the SFT model on this many training clauses
+  synthetic_per_type: 400              # plus targeted negatives: fabricated quote / over-flag / under-flag / wrong category
+  beta: 0.1
+  epochs: 1
+  batch_size: 2
+  grad_accum: 8
+  learning_rate: 1.0e-5
+  lora_r: 16
+  lora_alpha: 32
+  output_dir: runs/dpo
+
+eval:
+  backend: hf                          # hf | vllm
+  batch_size: 16
+  max_new_tokens: 192
+  max_samples: null                    # null = full test sets
+  load_in_4bit: false
+  reference_model: null                # optional LiteLLM model string for a closed-model column
+  out_dir: results
+
+roi:                                   # fill in from your own eval run and today's price pages
+  documents_per_month: 100000
+  clauses_per_document: null           # measure with scripts/06_roi.py --measure path/to/policies/*.txt
+  closed_api_name: null
+  closed_api_usd_per_million_input: null
+  closed_api_usd_per_million_output: null
+  closed_api_price_source: null        # URL + date checked
+  gpu_name: null
+  usd_per_gpu_hour: null
+  gpu_price_source: null

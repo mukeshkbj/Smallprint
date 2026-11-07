@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smallprint"
+version = "0.1.0"
+description = "A small on-device model that reads the small print: unfair-clause detection for Terms of Service and privacy policies, fine-tuned from Tiny Aya."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Mukesh Agrawal" }]
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+data  = ["datasets>=3.0", "huggingface_hub>=0.26", "curatorkit[generation]>=0.1.23", "litellm"]
+train = ["aligntune>=0.1.31", "datasets>=3.0", "peft>=0.18", "bitsandbytes"]
+eval  = ["auditkit[transformers]>=1.1.6", "transformers>=5.15", "peft>=0.18", "accelerate", "bitsandbytes"]
+vllm  = ["vllm"]
+space = ["gradio>=5", "transformers>=5.15", "peft>=0.18", "accelerate", "spaces"]
+dev   = ["pytest>=8", "auditkit>=1.1.6", "curatorkit>=0.1.23"]
+
+[tool.setuptools.packages.find]
+include = ["smallprint*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
