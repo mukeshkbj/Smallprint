@@ -45,10 +45,12 @@ def main() -> None:
     ap.add_argument("--config")
     ap.add_argument("--max-steps", type=int, default=-1)
     ap.add_argument("--push", action="store_true")
+    ap.add_argument("--model", help="model to start DPO from (default runs/sft/merged)")
+    ap.add_argument("--no-merge", action="store_true", help="save the DPO adapter only")
     args = ap.parse_args()
     cfg = load_config(args.config)
     dp, m = cfg["dpo"], cfg["model"]
-    sft_merged = str(Path(cfg["sft"]["output_dir"]) / "merged")
+    sft_merged = args.model or str(Path(cfg["sft"]["output_dir"]) / "merged")
     out = Path(dp["output_dir"])
 
     import importlib.util
@@ -92,6 +94,9 @@ def main() -> None:
     gc.collect()
     torch.cuda.empty_cache()
 
+    if args.no_merge:
+        print("adapter ->", adapter_dir)
+        return
     final_dir = out / "final"
     sft.merge_adapter(sft_merged, adapter_dir, str(final_dir))
     hub = cfg["hub"]

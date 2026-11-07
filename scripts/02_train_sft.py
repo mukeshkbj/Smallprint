@@ -36,9 +36,12 @@ def merge_adapter(base_id: str, adapter_dir: str, out_dir: str) -> None:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     dtype = torch.bfloat16 if compute_dtype() == "bfloat16" else torch.float16
-    base = AutoModelForCausalLM.from_pretrained(base_id, dtype=dtype, device_map="cpu")
+    # On the GPU when there is one: merging a 3.35B model on CPU needs more RAM than a free
+    # Colab has (it stalled there). Small shards keep the save's peak memory low too.
+    device_map = "auto" if torch.cuda.is_available() else "cpu"
+    base = AutoModelForCausalLM.from_pretrained(base_id, dtype=dtype, device_map=device_map)
     merged = PeftModel.from_pretrained(base, adapter_dir).merge_and_unload()
-    merged.save_pretrained(out_dir, safe_serialization=True)
+    merged.save_pretrained(out_dir, safe_serialization=True, max_shard_size="2GB")
     AutoTokenizer.from_pretrained(base_id).save_pretrained(out_dir)
     print("merged ->", out_dir)
 
