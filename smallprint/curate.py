@@ -31,7 +31,7 @@ def _curator():
 
 def grounding_gate(input_jsonl: str | Path, output_dir: str | Path, judge_model: str | None,
                    threshold: float = 0.7, judge_api_base: str | None = None,
-                   concurrency: int = 8) -> tuple[set[str], list[dict]]:
+                   concurrency: int = 8, judge_api_key: str | None = None) -> tuple[set[str], list[dict]]:
     """Run the hallucination gate. Returns (ids that passed, rejected rows with reasons)."""
     Curator, CuratorConfig = _curator()
     kw = dict(
@@ -41,7 +41,8 @@ def grounding_gate(input_jsonl: str | Path, output_dir: str | Path, judge_model:
     )
     if judge_model:
         kw.update(
-            llm_model=judge_model, judge_llm_model=judge_model, judge_llm_api_base=judge_api_base,
+            llm_model=judge_model, llm_api_base=judge_api_base, llm_api_key=judge_api_key,
+            judge_llm_model=judge_model, judge_llm_api_base=judge_api_base,
             hallucination_threshold=threshold, hallucination_prompt_template=GROUNDING_JUDGE_PROMPT,
             judge_concurrency=concurrency, judge_on_error="reject",
         )

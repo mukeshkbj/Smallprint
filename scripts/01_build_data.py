@@ -10,7 +10,7 @@
     -> optional push of the SFT dataset and the eval sets to the Hub
 
 Usage:
-  python scripts/01_build_data.py                  # full run (needs COHERE_API_KEY for the default teacher/judge)
+  python scripts/01_build_data.py                  # full run (needs HF_TOKEN: teacher + judge go through the HF router)
   python scripts/01_build_data.py --no-teacher     # offline: template explanations, no judge
   python scripts/01_build_data.py --limit 300 --no-teacher   # smoke test
   python scripts/01_build_data.py --push           # also upload datasets to the Hub
@@ -32,7 +32,7 @@ from smallprint.data import (  # noqa: E402
     balance, companies_overlapping, decontaminate, eval_record, from_lexglue, from_multilingual,
     sft_record, summarise, write_jsonl,
 )
-from smallprint.teacher import annotate, litellm_completion, template_annotation  # noqa: E402
+from smallprint.teacher import annotate, litellm_completion, resolve_api_key, template_annotation  # noqa: E402
 
 log = logging.getLogger("build_data")
 
@@ -91,7 +91,7 @@ def main() -> None:
     # 3. teacher annotations for unfair clauses (gold labels never change)
     t = cfg["teacher"]
     complete = None if (args.no_teacher or not t.get("model")) else \
-        litellm_completion(t["model"], api_base=t.get("api_base"))
+        litellm_completion(t["model"], api_base=t.get("api_base"), api_key=resolve_api_key(t))
     ann = annotate(train, complete, work / "interim" / "teacher_annotations.jsonl", t.get("concurrency", 8))
 
     unfair = [c for c in train if c.unfair]
@@ -104,7 +104,8 @@ def main() -> None:
     j = cfg["judge"]
     judge = None if (args.no_judge or args.no_teacher) else j.get("model")
     passed, rejected = grounding_gate(work / "interim" / "unfair_candidates.jsonl", work / "interim" / "gate",
-                                      judge, j.get("threshold", 0.7), j.get("api_base"))
+                                      judge, j.get("threshold", 0.7), j.get("api_base"), j.get("concurrency", 8),
+                                      resolve_api_key(j) if judge else None)
     write_jsonl(work / "interim" / "gate_rejected.jsonl", rejected)
     # A rejected explanation is the teacher's fault, not the label's: keep the expert label, use the template text.
     final_unfair, final_ann = [], []

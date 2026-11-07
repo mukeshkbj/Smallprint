@@ -1,4 +1,4 @@
-# Discord ticket draft (#report_issues → private channel)
+# Discord ticket (#report_issues → private channel)
 
 Hi Lexsi team, I'm Mukesh, registered for Track 1. I'd appreciate a quick sanity check on my idea before I
 commit the GPU time.
@@ -9,7 +9,8 @@ an exact quote as evidence, and a one-line explanation in the clause's language 
 on-device use, so documents don't leave the user's machine.
 
 - Data: LexGLUE UNFAIR-ToS and the multilingual CLAUDETTE corpus, with train/test leakage removed between them.
-  A teacher (Aya Expanse 32B) writes the evidence and explanations; CuratorKIT gates them for grounding.
+  A teacher (Aya Expanse 32B) writes the evidence and explanations, and CuratorKIT's grounding gate checks them
+  with a different judge model (Qwen3 235B), both called through HF Inference Providers.
 - Training: AlignTune QLoRA SFT, then DPO on the SFT model's own mistakes plus targeted negatives.
 - Eval: AuditKIT before/after on the LexGLUE test set and held-out CLAUDETTE companies, plus an ROI table.
 - Problem statements: 1, 5, 3, 4, 9, 2.

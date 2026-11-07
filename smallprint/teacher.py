@@ -4,7 +4,8 @@ explanation for every *unfair* training clause.
 The gold label (unfair + categories) always comes from the expert-annotated
 datasets; the teacher only writes the evidence/explanation text. Allowed
 teachers under the hackathon rules are any model used in a supplementary role
-(default: Aya Expanse 32B via the Cohere API). Each answer is checked with
+(default: Aya Expanse 32B through the Hugging Face router, Cohere provider,
+billed to HF credits). Each answer is checked with
 ``grounding.is_verbatim`` and retried once with feedback; anything still
 ungrounded falls back to a template (whole clause as evidence, category
 template as explanation) and is marked ``annotation_source="template"``.
@@ -14,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -36,15 +38,28 @@ def template_annotation(c: Clause) -> Annotation:
             "annotation_source": "template"}
 
 
+def resolve_api_key(section: dict) -> str | None:
+    """Read the key named by ``api_key_env`` (e.g. HF_TOKEN) from the environment."""
+    env = section.get("api_key_env")
+    if not env:
+        return None
+    key = os.environ.get(env)
+    if not key:
+        raise SystemExit(f"{env} is not set: it is needed for {section.get('model')}")
+    return key
+
+
 def litellm_completion(model: str, temperature: float = 0.2, max_tokens: int = 300,
-                       api_base: str | None = None) -> CompletionFn:
+                       api_base: str | None = None, api_key: str | None = None) -> CompletionFn:
+    """Any LiteLLM model. For the Hugging Face router use model="openai/<repo>[:provider]",
+    api_base="https://router.huggingface.co/v1" and your HF token as api_key."""
     import litellm  # installed with curatorkit[generation]
 
     def _call(prompt: str) -> str:
         resp = litellm.completion(
             model=model, messages=[{"role": "user", "content": prompt}],
             temperature=temperature, max_tokens=max_tokens, api_base=api_base,
-            num_retries=3,
+            api_key=api_key, num_retries=3,
         )
         return resp.choices[0].message.content or ""
     return _call

@@ -27,15 +27,25 @@ data:
   val_fraction: 0.05
   work_dir: data
 
+# Teacher and judge both go through the Hugging Face router (OpenAI-compatible), billed to your
+# HF credits with one HF_TOKEN. "repo:provider" pins a provider; no suffix lets HF choose.
+# The judge is a different model family from the teacher so it doesn't grade its own work.
+# Alternatives (any LiteLLM model string works):
+#   Cohere API directly:  model: cohere_chat/c4ai-aya-expanse-32b, api_base: null, api_key_env: COHERE_API_KEY
+#                         (trial keys are capped at 1,000 calls/month: too few for the full build)
+#   Nebius directly:      model: nebius/google/gemma-3-27b-it, api_base: null, api_key_env: NEBIUS_API_KEY
 teacher:                               # writes evidence + explanation for unfair training clauses
-  model: cohere_chat/c4ai-aya-expanse-32b   # any LiteLLM model string; null = template fallback only
-  api_base: null
+  model: openai/CohereLabs/aya-expanse-32b:cohere   # null = template fallback only
+  api_base: https://router.huggingface.co/v1
+  api_key_env: HF_TOKEN
   concurrency: 8
 
 judge:                                 # CuratorKIT hallucination gate on teacher explanations
-  model: cohere_chat/c4ai-aya-expanse-8b    # null = skip the LLM judge (verbatim-quote check still applies)
-  api_base: null
+  model: openai/Qwen/Qwen3-235B-A22B-Instruct-2507   # null = skip the LLM judge (verbatim-quote check still applies)
+  api_base: https://router.huggingface.co/v1
+  api_key_env: HF_TOKEN
   threshold: 0.7
+  concurrency: 8
 
 sft:
   backend: trl

@@ -58,7 +58,8 @@ is balanced to 2 fair clauses per unfair one.
 **Grounding.** A teacher model (Aya Expanse 32B by default, used only as a teacher, as the rules allow) writes
 the evidence quote and explanation for each unfair training clause. It never changes the expert label. The quote
 must appear verbatim in the clause (`smallprint/grounding.py`). CuratorKIT's hallucination gate then checks the
-explanation against the clause with a clause-specific judge prompt. When an explanation fails, the expert label
+explanation against the clause with a clause-specific judge prompt. The judge is a different model family
+(Qwen3 235B), so the teacher never grades its own work. When an explanation fails, the expert label
 is kept and the text falls back to a template.
 
 **Training.** AlignTune QLoRA SFT on `sft_messages` (TRL backend), then DPO. The DPO pairs combine the SFT
@@ -78,12 +79,16 @@ claim anything a quoted clause doesn't support, and every call stays well inside
 
 Open `notebooks/smallprint_colab.ipynb` in Colab or Kaggle (T4 or better). It runs every step below. You need:
 
-1. A Hugging Face token, and the licence accepted on [CohereLabs/tiny-aya-water](https://huggingface.co/CohereLabs/tiny-aya-water) (gated).
-2. A Cohere API key for the teacher and judge (`COHERE_API_KEY`). Without one, use `--no-teacher`.
+1. The licence accepted on [CohereLabs/tiny-aya-water](https://huggingface.co/CohereLabs/tiny-aya-water) (gated).
+2. A Hugging Face write token as `HF_TOKEN`. The teacher (Aya Expanse 32B, Cohere provider) and the judge
+   (Qwen3 235B) are called through the Hugging Face router and billed to your HF credits. Other providers
+   (Cohere API, Nebius, ...) are one config line each: see the comments in `configs/smallprint.yaml`.
+   With no API access at all, use `--no-teacher`.
 
 ```bash
 pip install -e ".[data,train,eval]"
-export SMALLPRINT_HUB__USER=your-hf-username
+export HF_TOKEN=hf_... SMALLPRINT_HUB__USER=your-hf-username
+python scripts/00_check_providers.py          # a few teacher/judge calls: check access and cost first
 python scripts/01_build_data.py --push        # CuratorKIT data + eval sets
 python scripts/05_evaluate.py --skip-final    # "before" numbers for the base model
 python scripts/02_train_sft.py --push         # AlignTune QLoRA SFT, then merge
