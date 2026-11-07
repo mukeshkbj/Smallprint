@@ -58,6 +58,8 @@ def main() -> None:
     ap.add_argument("--push", action="store_true")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
+    for noisy in ("LiteLLM", "litellm", "httpx", "httpcore"):  # one INFO line per API call otherwise
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     cfg = load_config(args.config)
     d = cfg["data"]

@@ -32,6 +32,17 @@ def test_curatorkit_assembly_keeps_distinct_fair_clauses(tmp_path):
     assert msg[0]["content"].startswith("You are Smallprint")
 
 
+def test_judge_prompt_passes_curatorkit_validation():
+    pytest.importorskip("curatorkit")
+    from curatorkit.gates.hallucination import HallucinationGate
+
+    from smallprint.prompts import GROUNDING_JUDGE_PROMPT
+
+    # Constructing the gate runs CuratorKIT's own placeholder validation (no LLM call is made).
+    HallucinationGate(llm=object(), threshold=0.7, prompt_template=GROUNDING_JUDGE_PROMPT)
+    GROUNDING_JUDGE_PROMPT.format(source_text="c", question="c", answer="{}")
+
+
 def test_auditkit_eval_with_stub_model(tmp_path):
     pytest.importorskip("auditkit")
     from smallprint.evaluate import compare, run_eval

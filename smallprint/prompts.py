@@ -55,14 +55,17 @@ TEACHER_RETRY_SUFFIX = """
 Your previous evidence was not an exact quote from the clause: {bad!r}
 Copy the quote character for character from the clause."""
 
-# Judge prompt for CuratorKIT's hallucination gate. Placeholders are the gate's own:
-# {source_text} = the clause, {question} = the clause (instruction), {answer} = target JSON.
+# Judge prompt for CuratorKIT's hallucination gate. CuratorKIT requires all three of its
+# placeholders: {source_text} = source_chunk (the clause), {question} = instruction (also the
+# clause, as the model saw it), {answer} = target JSON.
 GROUNDING_JUDGE_PROMPT = """You check training labels for a consumer-protection model.
 
-Clause:
+Source clause:
 ---
 {source_text}
 ---
+
+Model input (the clause as the model sees it): {question}
 
 Proposed annotation (JSON): {answer}
 
