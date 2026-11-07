@@ -200,3 +200,19 @@ def test_json_complete_stop_signal():
                           '{"unfair": true, "categories": ["arbitration"], "evid',
                           "Sure, here is my analysis of the clause"]) == [True, False, False]
     assert json_complete(['Here you go: {"a": "brace } in string"} and more text']) == [True]
+
+
+def test_accepted_conversational_matches_flattened_rows():
+    from smallprint.curate import accepted_conversational
+    chat = [
+        {"prompt": [{"role": "system", "content": "SYS"}, {"role": "user", "content": "Clause A"}],
+         "chosen": [{"role": "assistant", "content": '{"unfair": false}'}],
+         "rejected": [{"role": "assistant", "content": "prose"}]},
+        {"prompt": [{"role": "system", "content": "SYS"}, {"role": "user", "content": "Clause B"}],
+         "chosen": [{"role": "assistant", "content": '{"unfair": true}'}],
+         "rejected": [{"role": "assistant", "content": '{"unfair": false}'}]},
+    ]
+    # what AlignTune hands TRL after its CuratorKIT pass: flattened strings, row 2 dropped
+    curated = [{"prompt": "SYS\n\nClause A ", "chosen": '{"unfair": false}', "rejected": "prose"}]
+    assert accepted_conversational(curated, chat) == [0]
+    assert accepted_conversational([], chat) == []

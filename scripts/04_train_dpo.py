@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smallprint.config import load_config  # noqa: E402
+from smallprint.curate import accepted_conversational  # noqa: E402
 
 MODEL_CARD = """---
 license: cc-by-nc-4.0
@@ -38,6 +39,35 @@ Results: see the evaluation table in the code repo README.
 
 **Not legal advice.** Licence: CC BY-NC 4.0, inherited from Tiny Aya (non-commercial; follow Cohere Labs' Acceptable Use Policy).
 """
+
+
+def keep_chat_template(trainer, chat_dir: Path) -> None:
+    """Run AlignTune's own data setup (CuratorKIT schema gate), then give TRL the
+    conversational rows it accepted. AlignTune flattens message lists to plain
+    text for curation and passes that text on to DPO, so TRL would train
+    without the chat template (and warn about prompt/completion token
+    mismatches). SFT and inference both use the template, so DPO must too."""
+    from datasets import load_dataset
+
+    original = trainer.setup_data
+
+    def setup_data() -> None:
+        original()
+        for attr, split in (("train_dataset", "train"), ("eval_dataset", "validation")):
+            curated = getattr(trainer, attr, None)
+            path = chat_dir / f"{split}.jsonl"
+            if curated is None or not path.exists():
+                continue
+            chat = load_dataset("json", data_files=str(path), split="train")
+            idx = accepted_conversational(curated, chat)
+            if not idx:
+                print(f"[dpo] {split}: could not match AlignTune's curated rows; using all {len(chat)} pairs")
+                idx = list(range(len(chat)))
+            setattr(trainer, attr, chat.select(idx).select_columns(["prompt", "chosen", "rejected"]))
+            print(f"[dpo] {split}: {len(idx)}/{len(chat)} conversational pairs "
+                  f"(AlignTune/CuratorKIT accepted {len(curated)})")
+
+    trainer.setup_data = setup_data
 
 
 def main() -> None:
@@ -85,6 +115,7 @@ def main() -> None:
         logging_steps=10,
         seed=cfg["seed"],
     )
+    keep_chat_template(trainer, Path(cfg["data"]["work_dir"]) / "smallprint-dpo-chat")
     trainer.train()
     adapter_dir = trainer.save_model(str(out / "adapter")) or str(out / "adapter")
     del trainer

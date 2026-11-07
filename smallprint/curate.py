@@ -82,3 +82,25 @@ def assemble_dpo(input_jsonl: str | Path, output_dir: str | Path, val_fraction: 
     )).run()
     res.print_summary()
     return res
+
+
+def _flat(value) -> str:
+    """Text AlignTune sees for a field: message lists are joined the way its
+    DataManager flattens them before CuratorKIT ("\\n\\n" between contents)."""
+    if isinstance(value, list):
+        value = "\n\n".join(str(m.get("content", "")) for m in value if isinstance(m, dict))
+    return " ".join(str(value or "").split())
+
+
+def pair_key(row: dict) -> tuple[str, str, str]:
+    return _flat(row.get("prompt")), _flat(row.get("chosen")), _flat(row.get("rejected"))
+
+
+def accepted_conversational(curated_rows, chat_rows) -> list[int]:
+    """Indices of `chat_rows` (TRL conversational pairs) that survived AlignTune's
+    CuratorKIT pass. AlignTune curates a flattened copy and, for DPO, hands TRL
+    the flattened text, which drops the chat template. We keep its curation
+    decision but train on the conversational rows so the template matches SFT
+    and inference. Returns [] if nothing matches (caller decides the fallback)."""
+    keep = {pair_key(r) for r in curated_rows}
+    return [i for i, r in enumerate(chat_rows) if pair_key(r) in keep]
