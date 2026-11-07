@@ -75,6 +75,7 @@ def test_auditkit_eval_with_stub_model(tmp_path):
     spec = importlib.util.spec_from_file_location("ev", Path(__file__).resolve().parents[1] / "scripts" / "05_evaluate.py")
     ev = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ev)
+    run_eval(perfect, rows, "tuned__lexglue", tmp_path, source="lexglue")  # the script's <model>__<set> naming
     fn, saved = ev.replay(tmp_path, "tuned", "lexglue", rows)
     again, _ = run_eval(fn, rows, "tuned_replay", tmp_path, source="lexglue")
     assert again["unfair_f1"] == tuned["unfair_f1"] == saved["unfair_f1"]
