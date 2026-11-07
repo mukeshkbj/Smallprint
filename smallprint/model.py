@@ -13,8 +13,34 @@ import time
 from collections.abc import Sequence
 
 from .prompts import SYSTEM_PROMPT, chat_messages
+from .schema import _first_json_object
 
 DEFAULT_MAX_NEW_TOKENS = 192
+
+
+def json_complete(texts: Sequence[str]) -> list[bool]:
+    """Per sequence: has a complete first JSON object been generated yet? Scoring only ever
+    reads the first object, so generation can stop there (base models tend to ramble on)."""
+    return [_first_json_object(t) is not None for t in texts]
+
+
+def _stop_after_json(tok, prompt_len: int, every: int = 4):
+    """A transformers StoppingCriteria that ends each sequence once its JSON object closes."""
+    import torch
+    from transformers import StoppingCriteria
+
+    class StopAfterJSON(StoppingCriteria):
+        def __init__(self):
+            self.step = 0
+
+        def __call__(self, input_ids, scores, **kwargs):
+            self.step += 1
+            if self.step % every:
+                return torch.zeros(input_ids.shape[0], dtype=torch.bool, device=input_ids.device)
+            texts = tok.batch_decode(input_ids[:, prompt_len:], skip_special_tokens=True)
+            return torch.tensor(json_complete(texts), dtype=torch.bool, device=input_ids.device)
+
+    return StopAfterJSON()
 
 
 def native_bf16() -> bool:
@@ -88,9 +114,11 @@ class HFClauseModel(_TimedMixin):
                 for c in batch
             ]
             enc = self.tok(prompts, return_tensors="pt", padding=True, add_special_tokens=False).to(self.model.device)
+            from transformers import StoppingCriteriaList
+            stop = StoppingCriteriaList([_stop_after_json(self.tok, enc["input_ids"].shape[1])])
             with torch.no_grad():
                 gen = self.model.generate(**enc, max_new_tokens=self.max_new_tokens, do_sample=False,
-                                          pad_token_id=self.tok.pad_token_id)
+                                          pad_token_id=self.tok.pad_token_id, stopping_criteria=stop)
             new = gen[:, enc["input_ids"].shape[1]:]
             for row in new:
                 self.stats["output_tokens"] += int((row != self.tok.pad_token_id).sum())

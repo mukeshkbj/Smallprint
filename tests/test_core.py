@@ -192,3 +192,11 @@ def test_roi():
     assert abs(r["closed_api_usd"] - (100000 * 450 / 1e6 * 1 + 100000 * 20 / 1e6 * 2)) < 1e-9
     assert abs(r["self_hosted_gpu_hours"] - (100000 * 20 / 1000 / 3600)) < 1e-9
     assert "on device" in to_markdown(w, ClosedAPI("X", 1, 2, "s"), SelfHosted("T4", 0.5, 1000, "s"), r)
+
+
+def test_json_complete_stop_signal():
+    from smallprint.model import json_complete
+    assert json_complete(['{"unfair": false, "categories": [], "evidence": "", "explanation": ""}',
+                          '{"unfair": true, "categories": ["arbitration"], "evid',
+                          "Sure, here is my analysis of the clause"]) == [True, False, False]
+    assert json_complete(['Here you go: {"a": "brace } in string"} and more text']) == [True]
