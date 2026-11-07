@@ -68,3 +68,14 @@ def test_auditkit_eval_with_stub_model(tmp_path):
     assert set(tuned["per_language"]) == {"en", "de", "it"}
     assert (tmp_path / "tuned.json").exists() and (tmp_path / "tuned.predictions.jsonl").exists()
     assert "unfair_correct" in compare(base_r, tuned_r)
+
+    # Replaying saved predictions re-scores them through AuditKIT with identical metrics (no model needed).
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("ev", Path(__file__).resolve().parents[1] / "scripts" / "05_evaluate.py")
+    ev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ev)
+    fn, saved = ev.replay(tmp_path, "tuned", "lexglue", rows)
+    again, _ = run_eval(fn, rows, "tuned_replay", tmp_path, source="lexglue")
+    assert again["unfair_f1"] == tuned["unfair_f1"] == saved["unfair_f1"]
+    assert ev.replay(tmp_path, "tuned", "lexglue", rows[:2]) is None   # different sample -> no replay

@@ -55,6 +55,24 @@ def make_model(kind: str, cfg: dict, model_id: str, adapter: str | None = None):
                          batch_size=e["batch_size"], max_new_tokens=e["max_new_tokens"])
 
 
+def replay(out: Path, name: str, set_name: str, rows: list[dict]):
+    """A no-GPU 'model' that returns the raw outputs saved by an earlier run, so the
+    baseline is scored by AuditKIT again (and can be compared) without regenerating it.
+    Returns None unless the saved run covers exactly these clauses."""
+    preds, summ = out / f"{name}__{set_name}.predictions.jsonl", out / f"{name}__{set_name}.json"
+    if not preds.exists() or not summ.exists():
+        return None
+    raw = {p["id"]: p["raw"] for p in read_jsonl(preds)}
+    if {r["id"] for r in rows} != set(raw):
+        return None
+    by_text = {r["text"]: raw[r["id"]] for r in rows}
+
+    def fn(prompts):
+        return [by_text.get(p, "") for p in prompts]
+    fn.name = f"replay:{name}"
+    return fn, json.loads(summ.read_text())
+
+
 def free(model) -> None:
     del model
     gc.collect()
@@ -72,6 +90,8 @@ def main() -> None:
     ap.add_argument("--with-sft", action="store_true", help="also score base+SFT adapter")
     ap.add_argument("--skip-base", action="store_true")
     ap.add_argument("--skip-final", action="store_true", help="baseline only (before any training)")
+    ap.add_argument("--reuse-base", action="store_true",
+                    help="re-score the saved baseline predictions instead of regenerating them")
     ap.add_argument("--max-samples", type=int)
     ap.add_argument("--test-sets", default="lexglue,claudette_ml")
     args = ap.parse_args()
@@ -95,15 +115,31 @@ def main() -> None:
 
     summaries: dict[str, dict[str, dict]] = {k: {} for k in sets}
     ak_results: dict[str, dict] = {k: {} for k in sets}
+
+    def record(name: str, set_name: str, s: dict, r) -> None:
+        summaries[set_name][name] = s
+        ak_results[set_name][name] = r
+        print(f"{name} on {set_name}: unfair_f1={s['unfair_f1']:.3f} "
+              f"macro_f1={s['category_macro_f1']:.3f} valid={s['json_valid_rate']:.3f}")
+
     for name, kind, model_id, adapter in runs:
+        if name == "base" and args.reuse_base:
+            replayed = {k: replay(out, "base", k, rows) for k, rows in sets.items()}
+            if all(v is not None for v in replayed.values()):
+                for set_name, rows in sets.items():
+                    fn, saved = replayed[set_name]
+                    s, r = run_eval(fn, rows, f"base__{set_name}", out, source=set_name, model_label=saved["model"])
+                    s["usage"] = saved.get("usage", {})  # keep the real GPU timings from the original run
+                    (out / f"base__{set_name}.json").write_text(json.dumps(s, indent=2, ensure_ascii=False, default=str))
+                    record(name, set_name, s, r)
+                print("base: re-scored saved predictions (no GPU)")
+                continue
+            print("base: saved predictions don't match this sample, running the model")
         model = make_model(kind, cfg, model_id, adapter)
         for set_name, rows in sets.items():
             s, r = run_eval(model, rows, f"{name}__{set_name}", out, source=set_name,
                             model_label=getattr(model, "name", model_id))
-            summaries[set_name][name] = s
-            ak_results[set_name][name] = r
-            print(f"{name} on {set_name}: unfair_f1={s['unfair_f1']:.3f} "
-                  f"macro_f1={s['category_macro_f1']:.3f} valid={s['json_valid_rate']:.3f}")
+            record(name, set_name, s, r)
         free(model)
 
     lines = ["# Smallprint evaluation", ""]
