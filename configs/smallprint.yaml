@@ -69,6 +69,7 @@ dpo:
   learning_rate: 1.0e-5
   lora_r: 16
   lora_alpha: 32
+  load_in_4bit: true                   # false on A100/L40S (scripts/hf_job.py sets this)
   output_dir: runs/dpo
 
 eval:
