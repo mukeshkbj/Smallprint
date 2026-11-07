@@ -23,8 +23,10 @@ from smallprint.config import load_config  # noqa: E402
 
 
 def compute_dtype() -> str:
-    import torch
-    return "bfloat16" if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else "float16"
+    """bf16 only on GPUs that support it natively (Ampere+). On a T4, PyTorch reports bf16 as
+    'supported' via slow emulation, so ask without emulation."""
+    from smallprint.model import native_bf16
+    return "bfloat16" if native_bf16() else "float16"
 
 
 def merge_adapter(base_id: str, adapter_dir: str, out_dir: str) -> None:

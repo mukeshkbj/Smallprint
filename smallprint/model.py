@@ -17,6 +17,18 @@ from .prompts import SYSTEM_PROMPT, chat_messages
 DEFAULT_MAX_NEW_TOKENS = 192
 
 
+def native_bf16() -> bool:
+    """True only for GPUs with native bf16 (Ampere and newer). torch.cuda.is_bf16_supported()
+    also returns True on a T4 through slow emulation, which is not what we want."""
+    import torch
+    if not torch.cuda.is_available():
+        return False
+    try:
+        return torch.cuda.is_bf16_supported(including_emulation=False)
+    except TypeError:  # older torch without the argument
+        return torch.cuda.get_device_capability()[0] >= 8
+
+
 class _TimedMixin:
     """Tracks generated tokens and wall time for the throughput/ROI numbers."""
 
@@ -46,10 +58,15 @@ class HFClauseModel(_TimedMixin):
             from transformers import BitsAndBytesConfig
             kw["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True, bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16,
+                bnb_4bit_compute_dtype=torch.bfloat16 if native_bf16() else torch.float16,
             )
         else:
-            kw["dtype"] = "auto"
+            # Tiny Aya ships as bf16. GPUs without native bf16 (T4, V100) emulate it very slowly,
+            # so load fp16 there instead.
+            if torch.cuda.is_available():
+                kw["dtype"] = torch.bfloat16 if native_bf16() else torch.float16
+            else:
+                kw["dtype"] = torch.float32
         self.model = AutoModelForCausalLM.from_pretrained(model_id, **kw)
         if adapter_id:
             from peft import PeftModel
