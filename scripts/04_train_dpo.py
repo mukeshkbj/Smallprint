@@ -31,7 +31,7 @@ datasets: [{dataset}]
 Reads one clause of a Terms of Service or privacy policy and returns JSON:
 `{{"unfair": bool, "categories": [...], "evidence": "<exact quote>", "explanation": "<one plain sentence>"}}`.
 
-Fine-tuned from `{base}` with QLoRA SFT then DPO (AlignTune), on expert-labelled clauses from
+Fine-tuned from `{base}` with LoRA SFT then DPO (AlignTune), on expert-labelled clauses from
 LexGLUE UNFAIR-ToS and the multilingual CLAUDETTE corpus, curated with CuratorKIT and evaluated with AuditKIT.
 Use the system prompt in `smallprint/prompts.py` of the code repo: {code}
 
@@ -138,10 +138,14 @@ def main() -> None:
         if "/" not in hub["model_repo"]:
             raise SystemExit("Set hub.user (or SMALLPRINT_HUB__USER) before --push")
         from huggingface_hub import HfApi
+        from smallprint.hub import safe_push
         api = HfApi()
-        api.create_repo(hub["model_repo"], private=hub["private"], exist_ok=True)
-        api.upload_folder(folder_path=str(final_dir), repo_id=hub["model_repo"])
-        print("pushed", f"https://huggingface.co/{hub['model_repo']}")
+
+        def push():
+            api.create_repo(hub["model_repo"], private=hub["private"], exist_ok=True)
+            api.upload_folder(folder_path=str(final_dir), repo_id=hub["model_repo"])
+        if safe_push(hub["model_repo"], push):
+            print("pushed", f"https://huggingface.co/{hub['model_repo']}")
 
 
 if __name__ == "__main__":

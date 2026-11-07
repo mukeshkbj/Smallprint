@@ -216,3 +216,14 @@ def test_accepted_conversational_matches_flattened_rows():
     curated = [{"prompt": "SYS\n\nClause A ", "chosen": '{"unfair": false}', "rejected": "prose"}]
     assert accepted_conversational(curated, chat) == [0]
     assert accepted_conversational([], chat) == []
+
+
+def test_hub_licence_and_safe_push():
+    from smallprint.hub import CC_BY_NC_25, safe_push
+    assert CC_BY_NC_25.startswith("license: other\n") and "license_name: cc-by-nc-2.5" in CC_BY_NC_25
+    calls = []
+    assert safe_push("ok", lambda: calls.append(1)) is True
+
+    def bad():
+        raise ValueError("Bad request: license must be a licence id")
+    assert safe_push("bad", bad, retries=3, wait=0) is False  # validation errors aren't retried

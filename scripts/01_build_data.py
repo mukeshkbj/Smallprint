@@ -27,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smallprint.config import load_config  # noqa: E402
+from smallprint.hub import CC_BY_NC_25, safe_push  # noqa: E402
 from smallprint.curate import assemble_sft, grounding_gate  # noqa: E402
 from smallprint.data import (  # noqa: E402
     balance, companies_overlapping, decontaminate, eval_record, from_lexglue, from_multilingual,
@@ -146,8 +147,7 @@ def main() -> None:
 
 
 EVAL_README = """---
-license: cc-by-nc-2.5
-language: [en, de, it, pl]
+""" + CC_BY_NC_25 + """language: [en, de, it, pl]
 configs:
 - config_name: lexglue_test
   data_files: lexglue_test.jsonl
@@ -183,7 +183,7 @@ def _add_licence(readme: Path) -> None:
         return
     text = readme.read_text(encoding="utf-8")
     if text.startswith("---\n") and "\nlicense:" not in text.split("\n---", 1)[0]:
-        text = "---\nlicense: cc-by-nc-2.5\n" + text[4:]
+        text = "---\n" + CC_BY_NC_25 + text[4:]
     if "## Licence and sources" not in text:
         text += LICENCE_NOTE
     readme.write_text(text, encoding="utf-8")
@@ -201,9 +201,11 @@ def push_datasets(cfg: dict, sft_dir: Path, eval_dir: Path) -> None:
             (eval_dir / "README.md").write_text(EVAL_README)
         else:
             _add_licence(folder / "README.md")
-        api.create_repo(repo, repo_type="dataset", private=hub["private"], exist_ok=True)
-        api.upload_folder(folder_path=str(folder), repo_id=repo, repo_type="dataset")
-        print("pushed", f"https://huggingface.co/datasets/{repo}")
+        def push(repo=repo, folder=folder):
+            api.create_repo(repo, repo_type="dataset", private=hub["private"], exist_ok=True)
+            api.upload_folder(folder_path=str(folder), repo_id=repo, repo_type="dataset")
+        if safe_push(repo, push):
+            print("pushed", f"https://huggingface.co/datasets/{repo}")
 
 
 if __name__ == "__main__":

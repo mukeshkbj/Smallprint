@@ -30,11 +30,22 @@ def main() -> None:
         raise SystemExit(f"{out} does not exist: run scripts/05_evaluate.py first")
 
     from huggingface_hub import HfApi
+
+    from smallprint.hub import safe_push
     api = HfApi()
-    api.create_repo(repo, repo_type="dataset", private=cfg["hub"]["private"], exist_ok=True)
-    api.upload_folder(folder_path=str(out), path_in_repo="results", repo_id=repo, repo_type="dataset",
-                      commit_message="Upload evaluation results")
-    print("pushed", f"https://huggingface.co/datasets/{repo}/tree/main/results")
+
+    def push():
+        api.create_repo(repo, repo_type="dataset", private=cfg["hub"]["private"], exist_ok=True)
+        api.upload_folder(folder_path=str(out), path_in_repo="results", repo_id=repo, repo_type="dataset",
+                          commit_message="Upload evaluation results")
+    if safe_push(repo, push):
+        print("pushed", f"https://huggingface.co/datasets/{repo}/tree/main/results")
+        return
+    # Last step of an HF Job: if the upload fails, put the numbers in the log so they aren't lost.
+    for f in sorted(out.glob("*.json")) + [out / "summary.md"]:
+        if f.exists() and not f.name.endswith(".predictions.jsonl"):
+            print(f"===== {f.name} =====\n{f.read_text()}")
+    raise SystemExit("results upload failed; metrics printed above")
 
 
 if __name__ == "__main__":

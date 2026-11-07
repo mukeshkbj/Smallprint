@@ -95,7 +95,8 @@ def main() -> None:
         repo = cfg["hub"]["sft_adapter_repo"]
         if "/" not in repo:
             raise SystemExit("Set hub.user (or SMALLPRINT_HUB__USER) before --push")
-        trainer.push_to_hub(repo, private=cfg["hub"]["private"])
+        from smallprint.hub import safe_push
+        safe_push(repo, trainer.push_to_hub, repo, private=cfg["hub"]["private"])
 
     if not args.no_merge:
         del trainer
