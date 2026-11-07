@@ -74,6 +74,7 @@ def main() -> None:
         lora_target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         quantization={"load_in_4bit": True, "bnb_4bit_compute_dtype": compute_dtype(),
                       "bnb_4bit_quant_type": "nf4"} if s["load_in_4bit"] else {},
+        precision="bf16" if compute_dtype() == "bfloat16" else "fp16",  # T4 has no bf16
         warmup_ratio=0.03,
         lr_scheduler_type="cosine",
         logging_steps=10,

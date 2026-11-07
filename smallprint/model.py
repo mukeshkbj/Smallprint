@@ -79,6 +79,9 @@ class HFClauseModel(_TimedMixin):
                 self.stats["output_tokens"] += int((row != self.tok.pad_token_id).sum())
             self.stats["input_tokens"] += int(enc["attention_mask"].sum())
             outs.extend(self.tok.batch_decode(new, skip_special_tokens=True))
+            if (i // self.batch_size) % 5 == 4:  # progress for long eval runs
+                el = time.perf_counter() - t0
+                print(f"  {len(outs)}/{len(clauses)} clauses, {len(outs) / el:.1f}/s", flush=True)
         self.stats["seconds"] += time.perf_counter() - t0
         self.stats["calls"] += 1
         self.stats["clauses"] += len(clauses)
