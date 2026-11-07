@@ -42,12 +42,30 @@ STEPS = [
     "python scripts/00_check_providers.py --n 2",
     "python scripts/01_build_data.py --push",
     "python scripts/05_evaluate.py --skip-final",
+    "python scripts/07_push_results.py",  # save the baseline now, so a resumed run can reuse it
     "python scripts/02_train_sft.py --push",
     "python scripts/03_build_dpo.py",
     "python scripts/04_train_dpo.py --push",
     "python scripts/05_evaluate.py --with-sft --reuse-base",
     "python scripts/07_push_results.py",
 ]
+
+
+def restore_step(steps: list[str]) -> str | None:
+    """When resuming (--from-step), fetch what the skipped steps put on the Hub."""
+    done = [s for s in STEPS if s not in steps]
+    if not done:
+        return None
+    flags = []
+    if any("01_build_data" in s for s in done):
+        flags.append("--data")
+    if any("--skip-final" in s for s in done):
+        flags.append("--results")
+    if any("02_train_sft" in s for s in done) and any(k in s for s in steps for k in ("03_build", "04_train", "--with-sft")):
+        flags.append("--sft")
+    if any("04_train_dpo" in s for s in done):
+        flags.append("--final")
+    return "python scripts/08_restore_from_hub.py " + " ".join(flags) if flags else None
 
 
 def build_command(branch: str, steps: list[str]) -> list[str]:
@@ -85,7 +103,9 @@ def main() -> None:
     env = {**GPU_ENV, "SMALLPRINT_HUB__USER": args.hf_user}
     if args.public:
         env["SMALLPRINT_HUB__PRIVATE"] = "false"
-    cmd = build_command(args.branch, STEPS[args.from_step:])
+    steps = STEPS[args.from_step:]
+    restore = restore_step(steps)
+    cmd = build_command(args.branch, ([restore] if restore else []) + steps)
     if args.dry_run:
         print("flavor:", args.flavor, "timeout:", args.timeout)
         print("env:", env)

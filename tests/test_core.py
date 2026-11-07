@@ -227,3 +227,18 @@ def test_hub_licence_and_safe_push():
     def bad():
         raise ValueError("Bad request: license must be a licence id")
     assert safe_push("bad", bad, retries=3, wait=0) is False  # validation errors aren't retried
+
+
+def test_hf_job_resume_restores_skipped_outputs():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("hf_job", Path(__file__).parents[1] / "scripts" / "hf_job.py")
+    hj = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hj)
+    assert hj.restore_step(hj.STEPS) is None
+    i_sft = next(i for i, s in enumerate(hj.STEPS) if "02_train_sft" in s)
+    assert hj.restore_step(hj.STEPS[i_sft:]) == "python scripts/08_restore_from_hub.py --data --results"
+    i_dpo = next(i for i, s in enumerate(hj.STEPS) if "03_build_dpo" in s)
+    assert hj.restore_step(hj.STEPS[i_dpo:]) == "python scripts/08_restore_from_hub.py --data --results --sft"
+    i_final = next(i for i, s in enumerate(hj.STEPS) if "--with-sft" in s)
+    assert hj.restore_step(hj.STEPS[i_final:]).endswith("--data --results --sft --final")
