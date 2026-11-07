@@ -71,7 +71,7 @@ def main() -> None:
         gradient_accumulation_steps=dp["grad_accum"],
         learning_rate=dp["learning_rate"],
         max_seq_length=m["max_seq_length"],
-        max_prompt_length=m["max_seq_length"] - 256,
+        max_prompt_length=m["max_seq_length"] - 192,
         beta=dp["beta"],
         use_peft=True,
         lora_r=dp["lora_r"],

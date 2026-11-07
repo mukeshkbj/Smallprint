@@ -15,7 +15,7 @@ hub:
 
 model:
   base: CohereLabs/tiny-aya-water      # gated: accept the licence on the model page first
-  max_seq_length: 1024                 # system prompt (~350 tokens) + clause + JSON answer
+  max_seq_length: 896                  # system prompt (~400 tokens) + clause + JSON answer
 
 data:
   lexglue_repo: coastalcph/lex_glue
@@ -50,8 +50,8 @@ judge:                                 # CuratorKIT hallucination gate on teache
 sft:
   backend: trl
   epochs: 2
-  batch_size: 4
-  grad_accum: 4
+  batch_size: 1                        # Tiny Aya's ~262k vocab makes the logits huge: batch 4 OOMs a T4
+  grad_accum: 16                       # effective batch 16
   learning_rate: 2.0e-4
   lora_r: 16
   lora_alpha: 32
@@ -64,8 +64,8 @@ dpo:
   synthetic_per_type: 400              # plus targeted negatives: fabricated quote / over-flag / under-flag / wrong category
   beta: 0.1
   epochs: 1
-  batch_size: 2
-  grad_accum: 8
+  batch_size: 1                        # chosen + rejected + reference passes per pair
+  grad_accum: 16
   learning_rate: 1.0e-5
   lora_r: 16
   lora_alpha: 32
