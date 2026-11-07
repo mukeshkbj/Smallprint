@@ -22,7 +22,7 @@ import os
 import shlex
 
 REPO = "https://github.com/mukeshkbj/smallprint.git"
-IMAGE = "pytorch/pytorch:2.8.0-cuda12.8-cudnn9-devel"
+IMAGE = "python:3.12"  # has git; pip pulls CUDA-enabled torch wheels, the host provides the driver
 
 # Settings for a GPU with native bf16 and >= 40 GB (A100 / L40S). Overrides configs/smallprint.yaml.
 GPU_ENV = {
@@ -35,6 +35,7 @@ GPU_ENV = {
     "SMALLPRINT_EVAL__BATCH_SIZE": "32",
     "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     "PYTHONUNBUFFERED": "1",
+    "SMALLPRINT_HUB__PRIVATE": "true",   # uploads start private; pass --public to publish directly
 }
 
 STEPS = [
@@ -52,12 +53,12 @@ STEPS = [
 def build_command(branch: str, steps: list[str]) -> list[str]:
     script = " && ".join([
         "set -euo pipefail",
-        "apt-get update -qq && apt-get install -y -qq git >/dev/null",
         f"git clone -q --branch {shlex.quote(branch)} {REPO} /work",
         "cd /work",
         'pip install -q -e ".[data,train,eval]"',
-        "nvidia-smi --query-gpu=name,memory.total --format=csv",
-        *[f'echo "=== {s} ===" && {s}' for s in steps],
+        "(nvidia-smi --query-gpu=name,memory.total --format=csv || true)",
+        # pull before each step so fixes pushed while the job runs are picked up
+        *[f'echo "=== {s} ===" && git pull -q --ff-only && {s}' for s in steps],
         'echo "=== done ==="',
     ])
     return ["bash", "-lc", script]
@@ -71,6 +72,7 @@ def main() -> None:
     ap.add_argument("--hf-user", default=os.environ.get("SMALLPRINT_HUB__USER", "mukeshkbj"))
     ap.add_argument("--from-step", type=int, default=0, help="skip the first N steps (resume)")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--public", action="store_true", help="push public repos (default: private)")
     ap.add_argument("--logs", metavar="JOB_ID")
     args = ap.parse_args()
 
@@ -81,6 +83,8 @@ def main() -> None:
         return
 
     env = {**GPU_ENV, "SMALLPRINT_HUB__USER": args.hf_user}
+    if args.public:
+        env["SMALLPRINT_HUB__PRIVATE"] = "false"
     cmd = build_command(args.branch, STEPS[args.from_step:])
     if args.dry_run:
         print("flavor:", args.flavor, "timeout:", args.timeout)
@@ -88,7 +92,8 @@ def main() -> None:
         print(cmd[-1].replace(" && ", "\n  && "))
         return
 
-    token = os.environ.get("HF_TOKEN")
+    from huggingface_hub import get_token
+    token = os.environ.get("HF_TOKEN") or get_token()  # falls back to the token saved by `hf auth login`
     if not token:
         raise SystemExit("HF_TOKEN is not set (needs write access: the job pushes datasets and models)")
     from huggingface_hub import run_job
