@@ -47,6 +47,7 @@ STEPS = [
     "python scripts/03_build_dpo.py",
     "python scripts/04_train_dpo.py --push",
     "python scripts/05_evaluate.py --with-sft --reuse-base",
+    "python scripts/09_promote_best.py",
     "python scripts/07_push_results.py",
 ]
 
@@ -61,7 +62,7 @@ def restore_step(steps: list[str]) -> str | None:
         flags.append("--data")
     if any("--skip-final" in s for s in done):
         flags.append("--results")
-    if any("02_train_sft" in s for s in done) and any(k in s for s in steps for k in ("03_build", "04_train", "--with-sft")):
+    if any("02_train_sft" in s for s in done) and any(k in s for s in steps for k in ("03_build", "04_train", "--with-sft", "09_promote")):
         flags.append("--sft")
     if any("04_train_dpo" in s for s in done):
         flags.append("--final")

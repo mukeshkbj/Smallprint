@@ -38,7 +38,7 @@ def load_config(path: str | Path | None = None) -> dict:
         cfg.setdefault(section, {})[key] = _coerce(v)
     hub = cfg.get("hub", {})
     user = hub.get("user")
-    for name in ("model_repo", "sft_adapter_repo", "dataset_repo", "eval_dataset_repo", "dpo_dataset_repo", "space_repo"):
+    for name in ("model_repo", "dpo_model_repo", "sft_adapter_repo", "dataset_repo", "eval_dataset_repo", "dpo_dataset_repo", "space_repo"):
         if user and hub.get(name) and "/" not in hub[name]:
             hub[name] = f"{user}/{hub[name]}"
     return cfg

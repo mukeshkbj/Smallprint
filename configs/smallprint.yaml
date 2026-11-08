@@ -6,7 +6,8 @@ seed: 42
 hub:
   user: null                    # your Hugging Face username (must match the hackathon registration)
   private: false                # the hackathon requires public models and datasets
-  model_repo: smallprint-tiny-aya-water-3b
+  model_repo: smallprint-tiny-aya-water-3b          # the best model by AuditKIT (scripts/09_promote_best.py)
+  dpo_model_repo: smallprint-tiny-aya-water-3b-dpo  # the DPO model, whether or not it wins
   sft_adapter_repo: smallprint-tiny-aya-water-3b-sft-lora
   dataset_repo: smallprint-clauses-4lang
   dpo_dataset_repo: smallprint-preferences

@@ -255,3 +255,20 @@ def test_dpo_caps_keep_decision_pairs_at_training_mix():
     flag_less = c["over_flag"] + c["prose_fair"]
     assert flag_less == 2 * flag_more
     assert c["fabricated_quote"] == c["wrong_category"] == 400
+
+
+def test_promote_picks_dpo_only_if_it_scores_higher(tmp_path):
+    import importlib.util
+    import json
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("p9", Path(__file__).parents[1] / "scripts" / "09_promote_best.py")
+    p9 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(p9)
+    for run, f1 in (("sft", 0.7), ("final", 0.5)):
+        for s in p9.SETS:
+            (tmp_path / f"{run}__{s}.json").write_text(json.dumps({"unfair_f1": f1, "category_macro_f1": f1}))
+    sft, final = p9.score(tmp_path, "sft"), p9.score(tmp_path, "final")
+    assert p9.decide(sft, final) == "sft"
+    assert p9.decide({**sft, "score": 0.4}, final) == "final"
+    assert p9.decide(sft, None) == "sft"
+    assert "| score |" in p9.results_md("SFT", sft, "SFT + DPO", final)

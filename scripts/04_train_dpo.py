@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 """Step 4: DPO on top of the merged SFT model with AlignTune, then merge and
-publish the final model (the one the Space and the on-device build use).
+publish it to hub.dpo_model_repo. scripts/09_promote_best.py then publishes whichever of
+SFT and DPO scored better as hub.model_repo (the one the Space and the on-device build use).
 
 Usage:
   python scripts/04_train_dpo.py
   python scripts/04_train_dpo.py --max-steps 20     # smoke test
-  python scripts/04_train_dpo.py --push             # upload the final merged model
+  python scripts/04_train_dpo.py --push             # upload the merged DPO model (hub.dpo_model_repo)
 """
 
 from __future__ import annotations
@@ -18,28 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smallprint.config import load_config  # noqa: E402
 from smallprint.curate import accepted_conversational  # noqa: E402
-
-MODEL_CARD = """---
-license: cc-by-nc-4.0
-base_model: {base}
-language: [en, de, it, pl]
-tags: [legal, consumer-protection, terms-of-service, privacy-policy, json, lexsi-hackathon]
-datasets: [{dataset}]
----
-# Smallprint (Tiny Aya Water, 3.35B)
-
-Reads one clause of a Terms of Service or privacy policy and returns JSON:
-`{{"unfair": bool, "categories": [...], "evidence": "<exact quote>", "explanation": "<one plain sentence>"}}`.
-
-Fine-tuned from `{base}` with LoRA SFT then DPO (AlignTune), on expert-labelled clauses from
-LexGLUE UNFAIR-ToS and the multilingual CLAUDETTE corpus, curated with CuratorKIT and evaluated with AuditKIT.
-Use the system prompt in `smallprint/prompts.py` of the code repo: {code}
-
-Results: see the evaluation table in the code repo README.
-
-**Not legal advice.** Licence: CC BY-NC 4.0, inherited from Tiny Aya (non-commercial; follow Cohere Labs' Acceptable Use Policy).
-"""
-
 
 def keep_chat_template(trainer, chat_dir: Path) -> None:
     """Run AlignTune's own data setup (CuratorKIT schema gate), then give TRL the
@@ -131,21 +110,21 @@ def main() -> None:
     final_dir = out / "final"
     sft.merge_adapter(sft_merged, adapter_dir, str(final_dir))
     hub = cfg["hub"]
-    (final_dir / "README.md").write_text(MODEL_CARD.format(
-        base=m["base"], dataset=hub["dataset_repo"], code="https://github.com/mukeshkbj/smallprint"))
+    from smallprint.hub import model_card
+    (final_dir / "README.md").write_text(model_card(m["base"], hub["dataset_repo"], "LoRA SFT then DPO"))
 
     if args.push:
-        if "/" not in hub["model_repo"]:
+        if "/" not in hub["dpo_model_repo"]:
             raise SystemExit("Set hub.user (or SMALLPRINT_HUB__USER) before --push")
         from huggingface_hub import HfApi
         from smallprint.hub import safe_push
         api = HfApi()
 
         def push():
-            api.create_repo(hub["model_repo"], private=hub["private"], exist_ok=True)
-            api.upload_folder(folder_path=str(final_dir), repo_id=hub["model_repo"])
-        if safe_push(hub["model_repo"], push):
-            print("pushed", f"https://huggingface.co/{hub['model_repo']}")
+            api.create_repo(hub["dpo_model_repo"], private=hub["private"], exist_ok=True)
+            api.upload_folder(folder_path=str(final_dir), repo_id=hub["dpo_model_repo"])
+        if safe_push(hub["dpo_model_repo"], push):
+            print("pushed", f"https://huggingface.co/{hub['dpo_model_repo']}")
 
 
 if __name__ == "__main__":
