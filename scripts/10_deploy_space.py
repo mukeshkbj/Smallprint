@@ -14,7 +14,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -41,8 +44,16 @@ def main() -> None:
     api.create_repo(repo, repo_type="space", space_sdk="gradio", space_hardware=args.hardware,
                     private=not args.public, exist_ok=True)
     api.add_space_variable(repo, "SMALLPRINT_MODEL", hub["model_repo"])
-    api.upload_folder(folder_path=str(ROOT / "space"), repo_id=repo, repo_type="space",
-                      commit_message="Deploy Smallprint demo")
+    # Pin the code to this commit, so every deploy changes requirements.txt and the Space
+    # rebuilds with exactly the code that was tested (a bare git URL would stay cached).
+    sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    stage = Path(tempfile.mkdtemp()) / "space"
+    shutil.copytree(ROOT / "space", stage)
+    req = stage / "requirements.txt"
+    pkg = "smallprint @ git+https://github.com/mukeshkbj/smallprint"
+    req.write_text(req.read_text().replace(pkg, f"{pkg}@{sha}" if sha else pkg))
+    api.upload_folder(folder_path=str(stage), repo_id=repo, repo_type="space",
+                      commit_message=f"Deploy Smallprint demo ({sha[:7] or 'unpinned'})")
     info = api.get_space_runtime(repo)
     print("space:", f"https://huggingface.co/spaces/{repo}", "| hardware:", info.hardware,
           "| requested:", info.requested_hardware, "| stage:", info.stage)

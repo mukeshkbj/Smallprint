@@ -174,6 +174,9 @@ def test_split_clauses():
     assert any(p.startswith("We may change them") for p in parts)
     assert any("binding arbitration" in p for p in parts)
     assert all(len(p.split()) >= 4 for p in parts)
+    # section numbers and short headings go with the text that follows, not the clause before
+    assert any(p.startswith("Disputes. All disputes") for p in parts)
+    assert not any(p.rstrip().endswith(("2. Disputes.", "Disputes.")) for p in parts)
 
 
 def test_build_report():

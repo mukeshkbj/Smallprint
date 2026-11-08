@@ -26,6 +26,7 @@ _ABBREV = (
 _ABBREV_RE = re.compile(r"\b(" + "|".join(re.escape(a) for a in _ABBREV) + r")\.$", re.IGNORECASE)
 _SENT_END = re.compile(r"(?<=[.!?;])\s+(?=[\"'“(\[]?[A-ZÀ-ÞĄĆĘŁŃÓŚŹŻ0-9])")
 _BULLET = re.compile(r"^\s*(?:[-*•]|\(?[0-9ivxIVX]{1,4}[.)]|[a-zA-Z][.)])\s+")
+_NUMBER_ONLY = re.compile(r"^\(?(?:[0-9]{1,3}(?:\.[0-9]{1,3})*|[ivxIVX]{1,4}|[a-zA-Z])[.)]?$")
 MIN_WORDS = 4
 MAX_CHARS = 1200
 
@@ -47,15 +48,25 @@ def split_clauses(text: str) -> list[str]:
             buf = ""
         if buf:
             out.append(buf)
+    # Short pieces (section numbers, headings such as "2. Changes.") belong to the text that
+    # follows them, so they are carried forward; only a short piece at the very end joins the
+    # clause before it.
     merged: list[str] = []
+    pending = ""
     for s in out:
         s = _BULLET.sub("", s).strip()
-        if not s:
+        if not s or _NUMBER_ONLY.match(s):
             continue
-        if merged and len(s.split()) < MIN_WORDS:
-            merged[-1] = f"{merged[-1]} {s}"
+        if len(s.split()) < MIN_WORDS:
+            pending = f"{pending} {s}".strip()
+            continue
+        merged.append(f"{pending} {s}".strip() if pending else s)
+        pending = ""
+    if pending:
+        if merged:
+            merged[-1] = f"{merged[-1]} {pending}"
         else:
-            merged.append(s)
+            merged.append(pending)
     final: list[str] = []
     for s in merged:  # hard cap very long run-on clauses so prompts stay small
         while len(s) > MAX_CHARS:
