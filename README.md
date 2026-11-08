@@ -20,17 +20,29 @@ answers), 4 (multilingual), 9 (long documents) and 2 (replacing a closed-model A
 
 ## Results
 
-_Filled in from `results/summary.md` after the final run._
+Full run on an A100, 7–8 Nov 2026. Test sets keep their natural mix (about 1 clause in 10 is unfair),
+and every model is scored by AuditKIT on the same clauses with the same prompt.
 
-| Metric (LexGLUE UNFAIR-ToS test) | Tiny Aya Water, zero-shot | Smallprint (SFT + DPO) |
+| LexGLUE UNFAIR-ToS test (1,607 clauses) | Tiny Aya Water, zero-shot | Smallprint (SFT) |
 |---|---:|---:|
-| Valid JSON | – | – |
-| Unfair-term F1 | – | – |
-| Category micro-F1 / macro-F1 | – | – |
-| False alarms on fair clauses (lower is better) | – | – |
-| Evidence is a real quote | – | – |
+| Valid JSON | 25.3% | **99.9%** |
+| Unfair-term F1 | 0.263 | **0.788** |
+| Category micro-F1 / macro-F1 | 0.162 / 0.153 | **0.743 / 0.759** |
+| False alarms on fair clauses (lower is better) | 22.9% | **4.5%** |
+| Missed unfair clauses (lower is better) | 55.8% | **10.5%** |
+| Evidence is a real quote | 73.6% | **98.6%** |
 
-Multilingual (CLAUDETTE test companies, EN/DE/IT/PL): see `results/summary.md`.
+| Multilingual CLAUDETTE test (4,297 clauses) | zero-shot | Smallprint (SFT) |
+|---|---:|---:|
+| Unfair-term F1 | 0.268 | **0.657** |
+| Category macro-F1 | 0.162 | **0.569** |
+| Unfair-term F1 by language (DE / EN / IT / PL) | 0.27 / 0.28 / 0.25 / 0.27 | 0.63 / 0.70 / 0.68 / 0.63 |
+
+**DPO:** the first DPO run made the model flag far too much (false alarms 4.5% → 16.3%, F1 0.788 → 0.585),
+because its preference pairs pushed towards "unfair" about twice as often as towards "fair". AuditKIT caught
+it before release; the diagnosis and the fix are in [`docs/results-run1.md`](docs/results-run1.md).
+A label-balanced DPO run replaces this section's SFT column only if it beats SFT.
+
 ROI against a closed-model API: see `results/roi.md`.
 
 ## How it works
@@ -40,7 +52,7 @@ flowchart LR
   A["LexGLUE UNFAIR-ToS (EN)<br/>+ CLAUDETTE (EN/DE/IT/PL)"] --> B["Leakage removal<br/>company-level + near-duplicates"]
   B --> C["Teacher: evidence + explanation<br/>verbatim-quote check"]
   C --> D["CuratorKIT<br/>grounding gate, schema, dedup,<br/>provenance, sft_messages"]
-  D --> E["AlignTune<br/>QLoRA SFT (TRL)"]
+  D --> E["AlignTune<br/>LoRA SFT (TRL)"]
   E --> F["DPO pairs: on-policy mistakes<br/>+ targeted negatives (CuratorKIT)"]
   F --> G["AlignTune DPO"]
   G --> H["AuditKIT<br/>before/after, per language"]

@@ -28,20 +28,22 @@
 | LexGLUE UNFAIR-ToS | Standard benchmark with expert labels; comparable with published work | CC BY 4.0 |
 | CLAUDETTE multilingual | Same scheme in DE/IT/PL plus fairness levels; plays to Aya's multilingual strength | CC BY-NC 2.5 |
 
-- **Leakage removal** (both come from the same project): [X] companies dropped at company level (with all
-  translations), [X] near-duplicate sentences dropped. Explain why: without it, the "after" number would be
+- **Leakage removal** (both come from the same project): 4 companies dropped at company level (Evernote,
+  LinkedIn, Snap, Uber, with all translations), 1,223 near-duplicate sentences dropped. Explain why: without it, the "after" number would be
   partly memorisation.
-- **Balancing**: training only, 2 fair : 1 unfair per language. Test sets keep their natural mix ([X]% unfair).
-- **Teacher text**: Aya Expanse 32B wrote evidence and explanation for [X] unfair clauses. [X]% passed the
-  verbatim check first time, [X]% after one retry. CuratorKIT's grounding gate rejected [X]%; those fell back to
-  templates while keeping the expert label.
+- **Balancing**: training only, 2 fair : 1 unfair per language. Test sets keep their natural mix (10.7% unfair on LexGLUE, 9.0% on CLAUDETTE).
+- **Teacher text**: Aya Expanse 32B wrote evidence and explanation for 2,551 unfair clauses. 100 (3.9%) still
+  had no verbatim quote after one retry, and CuratorKIT's grounding gate (Qwen3 235B as judge) rejected 264
+  (10.3%); both fell back to templates while keeping the expert label. 2,187 teacher answers (85.7%) were kept.
 
 ## 4. Training
 
-- Model: Tiny Aya Water (3.35B, tuned for European languages), the target for on-device use. QLoRA (r=16).
-- SFT with AlignTune on CuratorKIT's `sft_messages` export: [X] examples, [X] epochs, [GPU], [X] GPU-hours.
-- DPO with AlignTune: [X] pairs, of which [X] were the SFT model's own mistakes and [X] targeted negatives (made-up
-  quote, over-flag, under-flag, wrong category, prose). β=0.1.
+- Model: Tiny Aya Water (3.35B, tuned for European languages), the target for on-device use. LoRA (r=16), bf16.
+- SFT with AlignTune on CuratorKIT's `sft_messages` export: 7,188 examples, 2 epochs, one A100 80 GB, 38 minutes.
+- DPO with AlignTune, run 1: 2,232 training pairs from 417 SFT mistakes (out of 3,000 training clauses) and 2,000
+  targeted negatives (made-up quote, over-flag, under-flag, wrong category, prose). β=0.1. It tripled false
+  alarms, because decision-changing pairs favoured "unfair" two to one; see `docs/results-run1.md`. Run 2 keeps
+  those pairs at the 1 unfair : 2 fair training mix, with β=0.2 and half the learning rate.
 
 ## 5. Metrics, and why
 
@@ -58,14 +60,15 @@
 
 ## 6. Results
 
-[Paste the tables from `results/summary.md`: LexGLUE, CLAUDETTE all languages, CLAUDETTE by language.]
+See `docs/results-run1.md` for the full tables (base, SFT, DPO run 1; CLAUDETTE by language).
 
 [3–5 sentences: what improved most, what didn't, one concrete example clause before vs after.]
 
 ## 7. Why it's better in use
 
 - [Before/after example: base model output vs Smallprint output on the same clause.]
-- [False alarms per typical policy: e.g. "on a [X]-clause policy the base model raises [X] false alarms, Smallprint [X]".]
+- False alarms per typical policy: on a 100-clause policy with 90 fair clauses, the base model raises about 21
+  false alarms and Smallprint (SFT) about 4, while catching 9 in 10 unfair clauses instead of 4 in 10 (LexGLUE rates).
 - Every flag can be checked against the quoted text, highlighted in the demo.
 
 ## 8. ROI
