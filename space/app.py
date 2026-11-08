@@ -21,9 +21,14 @@ MAX_GPU_SECONDS = int(os.environ.get("SMALLPRINT_MAX_GPU_SECONDS", "120"))
 # Load once at start-up. On ZeroGPU `.to("cuda")` here only registers the weights;
 # the GPU is attached inside the @spaces.GPU call. bf16 is native on ZeroGPU hardware.
 _device = "cuda" if torch.cuda.is_available() else "cpu"
-MODEL = HFClauseModel(MODEL_ID, batch_size=16, device_map=None, token=os.environ.get("HF_TOKEN"),
-                      dtype=torch.bfloat16 if _device == "cuda" else torch.float32)
-MODEL.model.to(_device)
+LOAD_ERROR = None
+try:
+    MODEL = HFClauseModel(MODEL_ID, batch_size=16, device_map=None, token=os.environ.get("HF_TOKEN"),
+                          dtype=torch.bfloat16 if _device == "cuda" else torch.float32)
+    MODEL.model.to(_device)
+except Exception as e:  # e.g. the model repo is still private and the Space has no token
+    MODEL, LOAD_ERROR = None, f"{type(e).__name__}: {str(e).splitlines()[0][:300]}"
+    print("model not loaded:", LOAD_ERROR, flush=True)
 
 
 def gpu_seconds(text: str) -> int:
@@ -51,13 +56,20 @@ EXAMPLE = """Welcome to Example Cloud. These Terms apply to your use of our stor
 
 
 @spaces.GPU(duration=gpu_seconds)
-def analyse(text: str):
+def _analyse_on_gpu(text: str):
     clauses = split_clauses(text or "")[:MAX_CLAUSES]
-    if not clauses:
-        return "Paste some terms or a privacy policy first.", {}
     raws = MODEL(clauses)
     report = build_report(clauses, [parse_output(r) for r in raws])
     return report.to_markdown(), report.to_dict()
+
+
+def analyse(text: str):
+    # Checks that need no GPU happen here, so they don't spend the visitor's ZeroGPU quota.
+    if MODEL is None:
+        return (f"The model `{MODEL_ID}` couldn't be loaded, so the demo is offline for now.\n\n`{LOAD_ERROR}`"), {}
+    if not split_clauses(text or ""):
+        return "Paste some terms or a privacy policy first.", {}
+    return _analyse_on_gpu(text)
 
 
 with gr.Blocks(title="Smallprint") as demo:
