@@ -11,6 +11,10 @@ Entry for the [Lexsi AI Safety and Alignment Hackathon](https://hackathon.lexsi.
 and Data Curation**, problem statements 1 (regulated-domain assistant), 5 (structured output), 3 (grounded
 answers), 4 (multilingual), 9 (long documents) and 2 (replacing a closed-model API).
 
+- **Demo:** [huggingface.co/spaces/mukeshkbj/smallprint-demo](https://huggingface.co/spaces/mukeshkbj/smallprint-demo) (ZeroGPU)
+- **Model:** [mukeshkbj/smallprint-tiny-aya-water-3b](https://huggingface.co/mukeshkbj/smallprint-tiny-aya-water-3b)
+- **Data:** [smallprint-clauses-4lang](https://huggingface.co/datasets/mukeshkbj/smallprint-clauses-4lang), [smallprint-eval](https://huggingface.co/datasets/mukeshkbj/smallprint-eval) (test sets + results)
+
 ```json
 {"unfair": true,
  "categories": ["unilateral_termination"],
