@@ -242,3 +242,16 @@ def test_hf_job_resume_restores_skipped_outputs():
     assert hj.restore_step(hj.STEPS[i_dpo:]) == "python scripts/08_restore_from_hub.py --data --results --sft"
     i_final = next(i for i, s in enumerate(hj.STEPS) if "--with-sft" in s)
     assert hj.restore_step(hj.STEPS[i_final:]).endswith("--data --results --sft --final")
+
+
+def test_dpo_caps_keep_decision_pairs_at_training_mix():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("b3", Path(__file__).parents[1] / "scripts" / "03_build_dpo.py")
+    b3 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b3)
+    c = b3.caps_for(400, 2.0)
+    flag_more = c["under_flag"] + c["prose_unfair"]
+    flag_less = c["over_flag"] + c["prose_fair"]
+    assert flag_less == 2 * flag_more
+    assert c["fabricated_quote"] == c["wrong_category"] == 400

@@ -104,6 +104,9 @@ def main() -> None:
     if args.public:
         env["SMALLPRINT_HUB__PRIVATE"] = "false"
     steps = STEPS[args.from_step:]
+    if any("02_train_sft" in s for s in STEPS[:args.from_step]):
+        # SFT isn't retrained, so its saved predictions are still valid: re-score them, don't regenerate
+        steps = [s.replace("--reuse-base", "--reuse base,sft") for s in steps]
     restore = restore_step(steps)
     cmd = build_command(args.branch, ([restore] if restore else []) + steps)
     if args.dry_run:

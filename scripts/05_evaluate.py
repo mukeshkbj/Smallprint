@@ -92,6 +92,8 @@ def main() -> None:
     ap.add_argument("--skip-final", action="store_true", help="baseline only (before any training)")
     ap.add_argument("--reuse-base", action="store_true",
                     help="re-score the saved baseline predictions instead of regenerating them")
+    ap.add_argument("--reuse", default="",
+                    help="comma list of runs (base,sft) to re-score from saved predictions")
     ap.add_argument("--max-samples", type=int)
     ap.add_argument("--test-sets", default="lexglue,claudette_ml")
     args = ap.parse_args()
@@ -122,19 +124,20 @@ def main() -> None:
         print(f"{name} on {set_name}: unfair_f1={s['unfair_f1']:.3f} "
               f"macro_f1={s['category_macro_f1']:.3f} valid={s['json_valid_rate']:.3f}")
 
+    reuse = {r for r in args.reuse.split(",") if r} | ({"base"} if args.reuse_base else set())
     for name, kind, model_id, adapter in runs:
-        if name == "base" and args.reuse_base:
-            replayed = {k: replay(out, "base", k, rows) for k, rows in sets.items()}
+        if name in reuse:
+            replayed = {k: replay(out, name, k, rows) for k, rows in sets.items()}
             if all(v is not None for v in replayed.values()):
                 for set_name, rows in sets.items():
                     fn, saved = replayed[set_name]
-                    s, r = run_eval(fn, rows, f"base__{set_name}", out, source=set_name, model_label=saved["model"])
+                    s, r = run_eval(fn, rows, f"{name}__{set_name}", out, source=set_name, model_label=saved["model"])
                     s["usage"] = saved.get("usage", {})  # keep the real GPU timings from the original run
-                    (out / f"base__{set_name}.json").write_text(json.dumps(s, indent=2, ensure_ascii=False, default=str))
+                    (out / f"{name}__{set_name}.json").write_text(json.dumps(s, indent=2, ensure_ascii=False, default=str))
                     record(name, set_name, s, r)
-                print("base: re-scored saved predictions (no GPU)")
+                print(f"{name}: re-scored saved predictions (no GPU)")
                 continue
-            print("base: saved predictions don't match this sample, running the model")
+            print(f"{name}: saved predictions don't match this sample, running the model")
         model = make_model(kind, cfg, model_id, adapter)
         for set_name, rows in sets.items():
             s, r = run_eval(model, rows, f"{name}__{set_name}", out, source=set_name,

@@ -61,12 +61,12 @@ sft:
 
 dpo:
   mine_from_train: 3000                # on-policy negatives: run the SFT model on this many training clauses
-  synthetic_per_type: 400              # plus targeted negatives: fabricated quote / over-flag / under-flag / wrong category
-  beta: 0.1
+  synthetic_per_type: 400              # plus targeted negatives (decision-moving types follow the 1:2 label mix)
+  beta: 0.2                            # run 1 used 0.1 + lr 1e-5 and drifted too far from SFT
   epochs: 1
   batch_size: 1                        # chosen + rejected + reference passes per pair
   grad_accum: 16
-  learning_rate: 1.0e-5
+  learning_rate: 5.0e-6
   lora_r: 16
   lora_alpha: 32
   load_in_4bit: true                   # false on A100/L40S (scripts/hf_job.py sets this)

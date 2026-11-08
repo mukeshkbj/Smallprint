@@ -9,7 +9,15 @@ rejected = (a) on-policy mistakes: the SFT model's own wrong answers on training
                over_flag         - a fair clause flagged as unfair
                under_flag        - an unfair clause marked fair
                wrong_category    - right decision, wrong category
-               prose             - an answer that isn't JSON
+               prose_unfair/fair - an answer that isn't JSON
+
+Label balance matters. Pairs whose chosen and rejected answers differ on the
+fair/unfair decision move the model's prior. Run 1 had ~2 "flag it" pairs for
+every "leave it" pair, and DPO tripled false alarms on fair clauses (4.5% ->
+16.3% on LexGLUE). Decision-moving pairs now follow the training mix (1 unfair
+: 2 fair, the mix SFT was calibrated on): over_flag and prose_fair get twice
+the cap of under_flag and prose_unfair. fabricated_quote and wrong_category
+keep the decision fixed, so they don't move it.
 
 Pairs go through CuratorKIT (schema check, exact dedup, provenance, split) and
 are then rewritten in TRL's conversational format (system+user prompt,
@@ -61,13 +69,24 @@ def targeted(c: Clause, ann: dict, rng: random.Random) -> list[tuple[str, str]]:
         others = [k for k in ALL_KEYS if k not in c.categories]
         out.append(("wrong_category", target_json(True, [rng.choice(others)], a.get("evidence", ""),
                                                   a.get("explanation", ""))))
-        out.append(("prose", f"This clause looks unfair because of {BY_KEY[c.categories[0]].name.lower()}."))
+        out.append(("prose_unfair", f"This clause looks unfair because of {BY_KEY[c.categories[0]].name.lower()}."))
     else:
         words = c.text.split()
         k = rng.choice(ALL_KEYS)
         out.append(("over_flag", target_json(True, [k], " ".join(words[: min(8, len(words))]),
                                              BY_KEY[k].plain_template)))
+        out.append(("prose_fair", "This clause looks fine; there is nothing unfair in it."))
     return out
+
+
+def caps_for(per_type: int, fair_per_unfair: float) -> dict[str, int]:
+    """Per-type caps that keep decision-moving pairs at the training label mix."""
+    fair = int(round(per_type * fair_per_unfair))
+    half = per_type // 2
+    return {"fabricated_quote": per_type, "wrong_category": per_type,
+            "under_flag": half, "over_flag": int(round(half * fair_per_unfair)),
+            "prose_unfair": half, "prose_fair": int(round(half * fair_per_unfair)),
+            "_fair_total": fair}
 
 
 def main() -> None:
@@ -108,10 +127,11 @@ def main() -> None:
         print(f"on-policy mistakes: {mined}/{len(sample)}")
 
     # (b) targeted negatives, capped per type
+    limit = caps_for(dp["synthetic_per_type"], cfg["data"]["fair_per_unfair"])
     caps: dict[str, int] = {}
     for c in clauses:
         for kind, rej in targeted(c, ann, rng):
-            if caps.get(kind, 0) < dp["synthetic_per_type"]:
+            if caps.get(kind, 0) < limit[kind]:
                 caps[kind] = caps.get(kind, 0) + 1
                 add(c, rej, kind)
     print("targeted negatives:", caps)

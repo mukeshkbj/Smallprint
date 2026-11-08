@@ -116,4 +116,4 @@ def test_build_data_and_dpo_offline(tmp_path, monkeypatch):
     assert pairs and pairs[0]["prompt"][0]["role"] == "system" and pairs[0]["chosen"][0]["role"] == "assistant"
     assert all(p["chosen"][0]["content"] != p["rejected"][0]["content"] for p in pairs)
     kinds = json.loads((chat / "negative_types.json").read_text())
-    assert {"fabricated_quote", "under_flag", "over_flag", "wrong_category", "prose"} <= set(kinds)
+    assert {"fabricated_quote", "under_flag", "over_flag", "wrong_category", "prose_unfair", "prose_fair"} <= set(kinds)
