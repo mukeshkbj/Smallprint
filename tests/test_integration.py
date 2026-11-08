@@ -80,3 +80,40 @@ def test_auditkit_eval_with_stub_model(tmp_path):
     again, _ = run_eval(fn, rows, "tuned_replay", tmp_path, source="lexglue")
     assert again["unfair_f1"] == tuned["unfair_f1"] == saved["unfair_f1"]
     assert ev.replay(tmp_path, "tuned", "lexglue", rows[:2]) is None   # different sample -> no replay
+
+
+def test_restore_rebuilds_dpo_inputs_from_published_sft_data(tmp_path):
+    """A resumed HF Job rebuilds step 3's inputs from the SFT export alone."""
+    import importlib.util
+    import random
+    from pathlib import Path
+
+    from smallprint.curate import assemble_sft
+    from smallprint.data import Clause, read_jsonl, sft_record, write_jsonl
+
+    clauses = [Clause(id=f"c{i}", text=f"Clause {i}: we may close your account {i} times a year without notice.",
+                      lang="en", source="lexglue", split="train", unfair=True, categories=["unilateral_termination"])
+               for i in range(20)]
+    clauses += [Clause(id=f"f{i}", text=f"Fair clause {i}: contact support on weekday {i} for billing help.",
+                       lang="en", source="lexglue", split="train", unfair=False) for i in range(40)]
+    rows = [sft_record(c, "we may close your account", "They can close it.", "teacher") if c.unfair else sft_record(c)
+            for c in clauses]
+    write_jsonl(tmp_path / "in.jsonl", rows)
+    assemble_sft(tmp_path / "in.jsonl", tmp_path / "sft", 0.1, 0)
+
+    root = Path(__file__).parents[1] / "scripts"
+    spec = importlib.util.spec_from_file_location("r8", root / "08_restore_from_hub.py")
+    r8 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(r8)
+    n, a = r8.rebuild_interim(tmp_path / "sft", tmp_path / "interim")
+    assert n == 60 and a == 20
+
+    spec = importlib.util.spec_from_file_location("b3", root / "03_build_dpo.py")
+    b3 = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(b3)
+    rebuilt = [Clause.from_dict(r) for r in read_jsonl(tmp_path / "interim" / "train_clauses.jsonl")]
+    ann = {x["clause_id"]: x for x in read_jsonl(tmp_path / "interim" / "final_annotations.jsonl")}
+    unfair = next(c for c in rebuilt if c.unfair)
+    assert '"evidence": "we may close your account"' in b3.gold_answer(unfair, ann)
+    kinds = {k for c in rebuilt for k, _ in b3.targeted(c, ann, random.Random(0))}
+    assert {"fabricated_quote", "under_flag", "over_flag", "prose_fair"} <= kinds

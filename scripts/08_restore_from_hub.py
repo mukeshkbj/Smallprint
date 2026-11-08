@@ -11,6 +11,8 @@ resumed in a fresh container (scripts/hf_job.py --from-step N adds this step its
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -18,6 +20,28 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smallprint.config import load_config  # noqa: E402
+from smallprint.data import Clause, read_jsonl, write_jsonl  # noqa: E402
+
+
+def rebuild_interim(sft_dir: Path, interim: Path) -> tuple[int, int]:
+    """Recreate the files step 3 (DPO) reads from the published SFT data: every SFT
+    example is a clause (user turn) with its gold JSON (assistant turn), so the
+    clause list and the evidence/explanation per unfair clause can be read back.
+    Language and source aren't in the export; DPO only uses them as metadata."""
+    clauses, ann = [], []
+    for f in sorted(sft_dir.glob("*/sft_messages.jsonl")):
+        for r in read_jsonl(f):
+            msgs = {m["role"]: m["content"] for m in r["messages"]}
+            text, gold = msgs["user"], json.loads(msgs["assistant"])
+            cid = "restored-" + hashlib.sha1(text.encode()).hexdigest()[:12]
+            clauses.append(Clause(id=cid, text=text, lang="unknown", source="restored", split="train",
+                                  unfair=bool(gold["unfair"]), categories=list(gold["categories"])).to_dict())
+            if gold["unfair"]:
+                ann.append({"clause_id": cid, "evidence": gold["evidence"], "explanation": gold["explanation"],
+                            "annotation_source": "restored"})
+    write_jsonl(interim / "train_clauses.jsonl", clauses)
+    write_jsonl(interim / "final_annotations.jsonl", ann)
+    return len(clauses), len(ann)
 
 
 def main() -> None:
@@ -31,10 +55,20 @@ def main() -> None:
     from huggingface_hub import snapshot_download
 
     if args.data:
-        snapshot_download(hub["dataset_repo"], repo_type="dataset", local_dir=work / "smallprint-sft")
+        sft_dir = work / "smallprint-sft"
+        snapshot_download(hub["dataset_repo"], repo_type="dataset", local_dir=sft_dir)
         snapshot_download(hub["eval_dataset_repo"], repo_type="dataset", local_dir=work / "eval",
                           allow_patterns=["*.jsonl"])
-        print("restored data ->", work / "smallprint-sft", "and", work / "eval")
+        print("restored data ->", sft_dir, "and", work / "eval")
+        interim = work / "interim"
+        if (sft_dir / "interim" / "train_clauses.jsonl").exists():   # uploaded by 01_build_data --push
+            interim.mkdir(parents=True, exist_ok=True)
+            for f in (sft_dir / "interim").glob("*.jsonl"):
+                shutil.copy2(f, interim / f.name)
+            print("restored interim files ->", interim)
+        else:
+            n, a = rebuild_interim(sft_dir, interim)
+            print(f"rebuilt interim files from the SFT data: {n} clauses, {a} annotations")
     if args.results:
         tmp = Path("/tmp/smallprint-results")
         try:

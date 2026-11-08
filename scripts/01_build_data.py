@@ -204,6 +204,12 @@ def push_datasets(cfg: dict, sft_dir: Path, eval_dir: Path) -> None:
         def push(repo=repo, folder=folder):
             api.create_repo(repo, repo_type="dataset", private=hub["private"], exist_ok=True)
             api.upload_folder(folder_path=str(folder), repo_id=repo, repo_type="dataset")
+            if folder == sft_dir:  # what step 3 (DPO) reads, so a resumed HF Job can rebuild the pairs
+                for name in ("train_clauses.jsonl", "final_annotations.jsonl"):
+                    f = Path(cfg["data"]["work_dir"]) / "interim" / name
+                    if f.exists():
+                        api.upload_file(path_or_fileobj=str(f), path_in_repo=f"interim/{name}",
+                                        repo_id=repo, repo_type="dataset")
         if safe_push(repo, push):
             print("pushed", f"https://huggingface.co/datasets/{repo}")
 
