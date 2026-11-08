@@ -1,4 +1,9 @@
-# Full run 1 (7–8 Nov 2026): DPO v1 over-flagged
+# Results (full runs, 7–8 Nov 2026)
+
+Short version: **SFT is the best model.** DPO v1 over-flagged; DPO v2 (label-balanced pairs) got close
+but still scored below SFT, so SFT is what `mukeshkbj/smallprint-tiny-aya-water-3b` holds.
+
+## Run 1: base, SFT, DPO v1
 
 HF Job `6aef94790e0338d1bb83d766`, A100 80 GB, 21:13–00:30 UTC. Test sets at their natural class mix:
 LexGLUE UNFAIR-ToS test (1,607 clauses, 172 unfair) and multilingual CLAUDETTE test companies
@@ -53,3 +58,39 @@ AuditKIT's before/after comparison caught the regression before anything was pub
   wrong_category (400 each) keep the decision fixed, so they only teach grounding and categories.
 - beta 0.1 to 0.2 and learning rate 1e-5 to 5e-6, to stay closer to the SFT model.
 - The SFT predictions are re-scored from saved outputs, so base and SFT numbers are identical across runs.
+
+## Run 2: DPO v2 (8 Nov)
+
+HF Job `6af047c00e0338d1bb84a602`, A100, resumed from the Hub (SFT not retrained). 2,242 training pairs:
+386 SFT mistakes (out of 3,000 training clauses) plus 2,000 targeted negatives (over_flag 400, prose_fair
+400, under_flag 200, prose_unfair 200, fabricated_quote 400, wrong_category 400). β=0.2, lr 5e-6,
+1 epoch, 20 minutes.
+
+| Metric | SFT | SFT + DPO v2 | SFT | SFT + DPO v2 |
+|---|---:|---:|---:|---:|
+| | **LexGLUE** | | **CLAUDETTE** | |
+| Valid JSON | 0.999 | 0.999 | 0.994 | 0.990 |
+| Unfair-term F1 | **0.788** | 0.759 | **0.657** | 0.616 |
+| Category micro-F1 | **0.743** | 0.719 | **0.629** | 0.586 |
+| Category macro-F1 | **0.759** | 0.744 | **0.569** | 0.537 |
+| False alarms on fair clauses (lower is better) | **0.045** | 0.063 | **0.071** | 0.089 |
+| Missed unfair clauses (lower is better) | 0.105 | **0.064** | 0.156 | **0.151** |
+| Evidence is a real quote | 0.986 | **0.988** | 0.935 | **0.948** |
+
+Balancing the pairs fixed most of v1's damage (LexGLUE F1 0.585 to 0.759; false alarms 16.3% to 6.3%), and
+DPO v2 misses fewer unfair clauses on LexGLUE (6.4% vs 10.5%). It still raises more false alarms than SFT and
+scores lower on every F1, in every language (CLAUDETTE unfair-term F1, DE/EN/IT/PL: 0.585 / 0.657 / 0.634 /
+0.591). By the promotion rule (mean of unfair-term F1 and category macro-F1 over both test sets) SFT wins,
+0.693 to 0.664.
+
+If missing an unfair clause matters more to you than an extra false alarm, DPO v2 is the higher-recall
+option on LexGLUE; it is published separately as `mukeshkbj/smallprint-tiny-aya-water-3b-dpo`.
+
+## An evaluation bug worth knowing about
+
+The first scoring of run 2 reported SFT at the baseline's numbers (F1 0.263) and published DPO v2 as the
+winner. AuditKIT caches results by a fingerprint of the model, and our two "replay saved predictions"
+functions fingerprinted the same, so the SFT replay was served the baseline's cached result.
+`run_eval` now gives every call its own model identity (a test reproduces the collision), the SFT results
+were restored from the earlier commit of the eval repo, and a repair job re-scored all three models and
+published the real winner.

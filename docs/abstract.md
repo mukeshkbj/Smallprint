@@ -1,6 +1,6 @@
 # Abstract (draft, under 500 words)
 
-> Numbers are base -> SFT from full run 1 (docs/results-run1.md). If DPO v2 beats SFT, update them and the training sentence.
+> Numbers are base -> SFT (the published model). Details and both DPO runs: docs/results.md.
 
 **Smallprint: a 3B on-device model that reads the small print**
 
@@ -20,9 +20,10 @@ Data comes from expert annotations: LexGLUE UNFAIR-ToS (English) and the multili
 Because both derive from the same project, we removed train/test leakage at company level (including
 translations) and at sentence level before training. A teacher model wrote the evidence and explanations for
 unfair clauses only; it never changed an expert label. Every quote was checked to be verbatim, and CuratorKIT's
-grounding gate checked every explanation against its clause. We trained with AlignTune (LoRA SFT). A first DPO stage, on the SFT model's own mistakes plus targeted
-negatives, tripled false alarms because its pairs favoured flagging two to one; AuditKIT caught the
-regression before release, and the shipped model is the one that scored best.
+grounding gate checked every explanation against its clause. We trained with AlignTune (LoRA SFT), then tried DPO on the SFT model's own mistakes plus targeted
+negatives. The first DPO run tripled false alarms because its pairs favoured flagging two to one; a
+label-balanced rerun came close but still scored below SFT. AuditKIT caught both before release, and the
+published model is the one that scored best.
 
 We evaluated with AuditKIT on the LexGLUE test set and on held-out CLAUDETTE companies in four languages,
 using the same prompt before and after. On LexGLUE, valid-JSON output rose from 25% to 99.9%, unfair-term F1

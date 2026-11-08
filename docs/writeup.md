@@ -42,8 +42,9 @@
 - SFT with AlignTune on CuratorKIT's `sft_messages` export: 7,188 examples, 2 epochs, one A100 80 GB, 38 minutes.
 - DPO with AlignTune, run 1: 2,232 training pairs from 417 SFT mistakes (out of 3,000 training clauses) and 2,000
   targeted negatives (made-up quote, over-flag, under-flag, wrong category, prose). β=0.1. It tripled false
-  alarms, because decision-changing pairs favoured "unfair" two to one; see `docs/results-run1.md`. Run 2 keeps
-  those pairs at the 1 unfair : 2 fair training mix, with β=0.2 and half the learning rate.
+  alarms, because decision-changing pairs favoured "unfair" two to one; see `docs/results.md`. Run 2 kept
+  those pairs at the 1 unfair : 2 fair training mix, with β=0.2 and half the learning rate: F1 0.759 vs SFT
+  0.788, fewer misses but more false alarms. SFT is published; DPO v2 is kept as a separate higher-recall model.
 
 ## 5. Metrics, and why
 
@@ -60,7 +61,7 @@
 
 ## 6. Results
 
-See `docs/results-run1.md` for the full tables (base, SFT, DPO run 1; CLAUDETTE by language).
+See `docs/results.md` for the full tables (base, SFT, DPO run 1; CLAUDETTE by language).
 
 [3–5 sentences: what improved most, what didn't, one concrete example clause before vs after.]
 

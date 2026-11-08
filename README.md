@@ -40,8 +40,9 @@ and every model is scored by AuditKIT on the same clauses with the same prompt.
 
 **DPO:** the first DPO run made the model flag far too much (false alarms 4.5% → 16.3%, F1 0.788 → 0.585),
 because its preference pairs pushed towards "unfair" about twice as often as towards "fair". AuditKIT caught
-it before release; the diagnosis and the fix are in [`docs/results-run1.md`](docs/results-run1.md).
-A label-balanced DPO run replaces this section's SFT column only if it beats SFT.
+it before release; the diagnosis and the fix are in [`docs/results.md`](docs/results.md).
+A second, label-balanced DPO run came close (LexGLUE F1 0.759, fewer missed clauses, more false alarms) but
+still scored below SFT, so the published model is the SFT one. Both runs are in [`docs/results.md`](docs/results.md).
 
 ROI against a closed-model API: see `results/roi.md`.
 
