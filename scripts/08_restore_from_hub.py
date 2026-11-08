@@ -49,6 +49,9 @@ def main() -> None:
     ap.add_argument("--config")
     for flag in ("data", "results", "sft", "final"):
         ap.add_argument(f"--{flag}", action="store_true")
+    ap.add_argument("--results-from", action="append", default=[], metavar="RUN@REVISION",
+                    help="take one run's saved results from an earlier commit of the eval repo, "
+                         "e.g. sft@b1451b8 (repeatable; applied after --results)")
     args = ap.parse_args()
     cfg = load_config(args.config)
     hub, work = cfg["hub"], Path(cfg["data"]["work_dir"])
@@ -82,6 +85,19 @@ def main() -> None:
             for f in (tmp / "results").iterdir():
                 shutil.copy2(f, out / f.name)
             print("restored results ->", out)
+    for spec in args.results_from:
+        run, rev = spec.split("@", 1)
+        tmp = Path(f"/tmp/smallprint-results-{run}")
+        snapshot_download(hub["eval_dataset_repo"], repo_type="dataset", local_dir=tmp, revision=rev,
+                          allow_patterns=[f"results/{run}__*"])
+        out = Path(cfg["eval"]["out_dir"])
+        out.mkdir(parents=True, exist_ok=True)
+        files = list((tmp / "results").glob(f"{run}__*"))
+        if not files:
+            raise SystemExit(f"no results/{run}__* at revision {rev}")
+        for f in files:
+            shutil.copy2(f, out / f.name)
+        print(f"restored {len(files)} {run} result files from revision {rev}")
     if args.sft:
         sft_out = Path(cfg["sft"]["output_dir"])
         snapshot_download(hub["sft_adapter_repo"], local_dir=sft_out / "adapter")

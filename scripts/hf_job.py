@@ -93,6 +93,9 @@ def main() -> None:
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--public", action="store_true", help="push public repos (default: private)")
     ap.add_argument("--logs", metavar="JOB_ID")
+    ap.add_argument("--step", action="append", default=[], metavar="CMD",
+                    help="run these commands instead of the pipeline steps (repeatable)")
+    ap.add_argument("--name", default="smallprint-full-run")
     args = ap.parse_args()
 
     if args.logs:
@@ -109,7 +112,7 @@ def main() -> None:
         # SFT isn't retrained, so its saved predictions are still valid: re-score them, don't regenerate
         steps = [s.replace("--reuse-base", "--reuse base,sft") for s in steps]
     restore = restore_step(steps)
-    cmd = build_command(args.branch, ([restore] if restore else []) + steps)
+    cmd = build_command(args.branch, args.step or (([restore] if restore else []) + steps))
     if args.dry_run:
         print("flavor:", args.flavor, "timeout:", args.timeout)
         print("env:", env)
@@ -122,7 +125,7 @@ def main() -> None:
         raise SystemExit("HF_TOKEN is not set (needs write access: the job pushes datasets and models)")
     from huggingface_hub import run_job
     job = run_job(image=IMAGE, command=cmd, env=env, secrets={"HF_TOKEN": token},
-                  flavor=args.flavor, timeout=args.timeout, name="smallprint-full-run")
+                  flavor=args.flavor, timeout=args.timeout, name=args.name)
     print("job id:", job.id)
     print("follow it at:", getattr(job, "url", None) or f"https://huggingface.co/jobs/{args.hf_user}/{job.id}")
     print("logs:   python scripts/hf_job.py --logs", job.id)

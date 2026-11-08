@@ -81,6 +81,16 @@ def test_auditkit_eval_with_stub_model(tmp_path):
     assert again["unfair_f1"] == tuned["unfair_f1"] == saved["unfair_f1"]
     assert ev.replay(tmp_path, "tuned", "lexglue", rows[:2]) is None   # different sample -> no replay
 
+    # Two replays of different saved runs must not share AuditKIT's disk cache. Both are closures from the
+    # same factory, which AuditKIT fingerprints identically; run 3 scored SFT with the baseline's cached
+    # result that way. Each evaluate() call now gets its own model identity.
+    run_eval(always_fair, rows, "fair__lexglue", tmp_path, source="lexglue")
+    f_fair, _ = ev.replay(tmp_path, "fair", "lexglue", rows)
+    f_tuned, _ = ev.replay(tmp_path, "tuned", "lexglue", rows)
+    a, _ = run_eval(f_fair, rows, "r1", tmp_path, source="lexglue")
+    b, _ = run_eval(f_tuned, rows, "r2", tmp_path, source="lexglue")
+    assert a["unfair_f1"] == 0.0 and b["unfair_f1"] == 1.0
+
 
 def test_restore_rebuilds_dpo_inputs_from_published_sft_data(tmp_path):
     """A resumed HF Job rebuilds step 3's inputs from the SFT export alone."""

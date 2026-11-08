@@ -11,6 +11,7 @@ predictions in ``metrics.py``.
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -80,7 +81,14 @@ def run_eval(model_fn: ModelFn, rows: Sequence[dict], run_name: str, out_dir: st
     keys = keys_for(source)
 
     samples = build_samples(rows)
-    result = ak.evaluate(samples, model_fn, make_scorers(keys), experiment_name="smallprint",
+    # Give every call its own model identity. AuditKIT caches results on disk by a fingerprint of the
+    # model; two closures from the same factory (e.g. two replays of saved runs) fingerprint the same,
+    # so the second call would be served the first one's result. Our own predictions files are the
+    # record of a run, so nothing is lost by not reusing AuditKIT's cache.
+    from auditkit.model import CallableModel
+    label = model_label or getattr(model_fn, "name", None) or type(model_fn).__name__
+    model = CallableModel(model_fn, name=f"smallprint:{run_name}:{label}:{uuid.uuid4().hex[:12]}")
+    result = ak.evaluate(samples, model, make_scorers(keys), experiment_name="smallprint",
                          tags=[run_name, source])
 
     raw_by_id = {p.sample_id: (p.raw_output or "") for p in result.predictions}
