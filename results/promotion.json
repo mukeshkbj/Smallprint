@@ -1,0 +1,17 @@
+{
+  "winner": "sft",
+  "sft": {
+    "lexglue.unfair_f1": 0.7877237851662403,
+    "lexglue.category_macro_f1": 0.7587580601282806,
+    "claudette_ml.unfair_f1": 0.6572295247724975,
+    "claudette_ml.category_macro_f1": 0.5688389173466316,
+    "score": 0.6931375718534125
+  },
+  "final": {
+    "lexglue.unfair_f1": 0.7594339622641509,
+    "lexglue.category_macro_f1": 0.7435176295730231,
+    "claudette_ml.unfair_f1": 0.6163996229971724,
+    "claudette_ml.category_macro_f1": 0.5369564288640094,
+    "score": 0.664076910924589
+  }
+}

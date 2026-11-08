@@ -1,6 +1,6 @@
 # Smallprint: write-up (skeleton for the HF article or README submission)
 
-> Fill in the [X] values from `results/summary.md`, `results/roi.md` and `data/build_report.json`.
+> Numbers come from `results/summary.md`, `results/roi.md`, `docs/results.md` and the data build report.
 > The hackathon asks for: the metrics and why they were chosen; the approach and the reasons behind the
 > datasets, tasks and models; and how the result is meaningfully better in use.
 
@@ -74,8 +74,10 @@ See `docs/results.md` for the full tables (base, SFT, DPO run 1; CLAUDETTE by la
 
 ## 8. ROI
 
-[Paste `results/roi.md`. Note the price sources and dates, the measured throughput and GPU, and that on-device
-cost is zero at the margin and keeps documents private.]
+See `results/roi.md`. At 100,000 policies a month (188 clauses each), GPT-5 mini at list price costs about $4,913
+($0.049 a policy, a lower bound because its reasoning tokens aren't counted), Smallprint on one A100 about $2,085
+($0.021) with plain `transformers` generation at a measured 6.3 clauses/s, and Smallprint on the user's device
+nothing at the margin, with the document never leaving the device. Prices checked 8 Nov 2026.
 
 ## 9. Limitations and next steps
 

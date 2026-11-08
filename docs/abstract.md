@@ -31,8 +31,9 @@ from 0.26 to 0.79, and category macro-F1 from 0.15 to 0.76. False alarms on fair
 and the share of evidence that is a real quote rose from 74% to 99%. In German, Italian and Polish,
 category macro-F1 rose from 0.15–0.17 to 0.50–0.61, with Polish the weakest.
 
-At [N] documents a month, the closed-model API we compared against would cost about $[X], self-hosting Smallprint
-on a [GPU] about $[X], and running it on the user's own device nothing, with no document leaving the device.
+At 100,000 policies a month, GPT-5 mini at list price would cost about $4,900, self-hosting Smallprint on one
+A100 about $2,100 even with unoptimised generation, and running it on the user's own device nothing, with no
+document leaving the device.
 
 Limitations: labels cover nine categories from EU consumer-law research and sentence-level units. The model can
 miss unfair terms that span several sentences. The base model's licence is non-commercial. Smallprint points at

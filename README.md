@@ -44,7 +44,17 @@ it before release; the diagnosis and the fix are in [`docs/results.md`](docs/res
 A second, label-balanced DPO run came close (LexGLUE F1 0.759, fewer missed clauses, more false alarms) but
 still scored below SFT, so the published model is the SFT one. Both runs are in [`docs/results.md`](docs/results.md).
 
-ROI against a closed-model API: see `results/roi.md`.
+### Cost at scale
+
+100,000 policies a month (188 clauses each, the LexGLUE average; token counts and speed measured in our eval run):
+
+| Option | Per month | Per policy |
+|---|---:|---:|
+| OpenAI GPT-5 mini API (list price, a lower bound) | $4,913 | $0.049 |
+| Smallprint self-hosted, 1x A100 at $2.50/h, plain `transformers` | $2,085 | $0.021 |
+| Smallprint on the user's device | $0 | $0, and no document leaves the device |
+
+Prices checked 8 Nov 2026; assumptions in [`results/roi.md`](results/roi.md).
 
 ## How it works
 

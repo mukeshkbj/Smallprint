@@ -82,13 +82,13 @@ eval:
   reference_model: null                # optional LiteLLM model string for a closed-model column
   out_dir: results
 
-roi:                                   # fill in from your own eval run and today's price pages
+roi:                                   # prices checked 8 Nov 2026; token counts and speed from our own eval run
   documents_per_month: 100000
-  clauses_per_document: null           # measure with scripts/06_roi.py --measure path/to/policies/*.txt
-  closed_api_name: null
-  closed_api_usd_per_million_input: null
-  closed_api_usd_per_million_output: null
-  closed_api_price_source: null        # URL + date checked
-  gpu_name: null
-  usd_per_gpu_hour: null
-  gpu_price_source: null
+  clauses_per_document: 188            # LexGLUE UNFAIR-ToS: 9,414 sentences across 50 real ToS documents
+  closed_api_name: OpenAI GPT-5 mini
+  closed_api_usd_per_million_input: 0.25
+  closed_api_usd_per_million_output: 2.00
+  closed_api_price_source: "list price, developers.openai.com/api/docs/pricing (via developersdigest.tech, verified 17 Oct 2026), checked 8 Nov 2026"
+  gpu_name: 1x A100 80GB (HF Jobs a100-large)
+  usd_per_gpu_hour: 2.50
+  gpu_price_source: "huggingface.co/docs/hub/jobs-pricing, checked 8 Nov 2026"
