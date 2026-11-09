@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Launch the three follow-up HF Jobs suggested by the Lexsi team. Needs HF_TOKEN in the environment
-# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant ...]
+# Launch the follow-up HF Jobs suggested by the Lexsi team (global, safety, quant; hardened is opt-in). Needs HF_TOKEN in the environment
+# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant|hardened ...]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 which=("${@:-global safety quant}")
@@ -27,6 +27,16 @@ for job in ${which[@]}; do
         --step "python scripts/08_restore_from_hub.py --data" \
         --step "pip install -q -r requirements-circuit.txt" \
         --step "python scripts/13_circuitkit_quantize.py" \
+        --step "python scripts/07_push_results.py" ;;
+    hardened) # injection-hardened SFT (step 15 data), task scores + full safety suite with the same judge
+      python scripts/hf_job.py --flavor a100-large --timeout 3h --name smallprint-hardened \
+        --env SMALLPRINT_HUB__SFT_ADAPTER_REPO=smallprint-tiny-aya-water-3b-hardened-sft-lora \
+        --env SMALLPRINT_EVAL__OUT_DIR=results-hardened \
+        --step "python scripts/08_restore_from_hub.py --data" \
+        --step "python scripts/15_harden_data.py" \
+        --step "python scripts/02_train_sft.py --dataset-dir data/smallprint-sft-hardened --push" \
+        --step "python scripts/05_evaluate.py --skip-base --with-sft --sft-merged --skip-final" \
+        --step "python scripts/12_safety_eval.py --models hardened=runs/sft/merged --judge-model openai/deepseek-ai/DeepSeek-V3.2" \
         --step "python scripts/07_push_results.py" ;;
     *) echo "unknown job: $job" >&2; exit 1 ;;
   esac

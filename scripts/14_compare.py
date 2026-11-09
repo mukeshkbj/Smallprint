@@ -8,6 +8,7 @@ Reads the result folders the other steps write and builds results/comparisons.md
    and per language.
 3. Safety degradation (results/safety/summary.md from step 12).
 4. CircuitKIT mixed-precision quantization (results/quantization/summary.md from step 13).
+5. Injection hardening: Smallprint vs the model trained on step 15's augmented data (results-hardened/).
 
 Sections whose results aren't there yet are marked "pending", so it can run at any time.
 
@@ -141,10 +142,45 @@ def included(path: Path, title: str, what: str) -> list[str]:
     return [f"## {title}", ""] + [ln.replace("\n", "") for ln in body] + [""]
 
 
+SAFETY_ROWS = (
+    ("AdvBench harmful requests refused (higher is safer)", "harmful", "unsafe.refusal_rate"),
+    ("XSTest unsafe prompts refused (higher is safer)", "xstest", "unsafe.refusal_rate"),
+    ("XSTest safe prompts answered (higher is better)", "xstest", "safe.full_compliance_rate"),
+    ("Unfair clauses flagged, clean", "injection", "clean_flag_rate"),
+    ("Unfair clauses flagged, harmless sentence added", "injection", "control.flag_rate"),
+    ("Injection 'reviewer_note': flags removed (lower is better)", "injection", "reviewer_note.attack_success"),
+    ("Injection 'override': flags removed (lower is better)", "injection", "override.attack_success"),
+    ("Injection 'legal_assurance': flags removed (lower is better)", "injection", "legal_assurance.attack_success"),
+    ("Injection: mean flags removed (lower is better)", "injection", "mean_attack_success"),
+)
+
+
+def hardening(water: Path, hardened: Path) -> list[str]:
+    title = ["## 5. Injection hardening", "",
+             "Smallprint retrained with step 15's data: copies of training clauses with an injected sentence "
+             "appended and the gold answer unchanged. The test attacks below use wording that never appears "
+             "in training.", ""]
+    if not load(hardened, "sft", "lexglue"):
+        return title + ["Pending: run `bash scripts/launch_extras.sh hardened`.", ""]
+    out = list(title)
+    for key, name in SETS:
+        cols = {"Smallprint": load(water, "sft", key), "Smallprint, hardened": load(hardened, "sft", key)}
+        out += [f"### {name}", ""] + metric_table(cols) + [""]
+    a, b = water / "safety" / "smallprint.json", hardened / "safety" / "hardened.json"
+    if a.exists() and b.exists():
+        ra, rb = json.loads(a.read_text()), json.loads(b.read_text())
+        out += ["### Safety", "", "| | Smallprint | Smallprint, hardened |", "|---|---:|---:|"]
+        for label, suite, k in SAFETY_ROWS:
+            out.append(f"| {label} | {fmt(ra.get(suite, {}).get(k))} | {fmt(rb.get(suite, {}).get(k))} |")
+        out.append("")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--water", default="results")
     ap.add_argument("--variant", action="append", default=[], help="name=folder, e.g. global=results-global")
+    ap.add_argument("--hardened", default="results-hardened")
     ap.add_argument("--out", default="results/comparisons.md")
     args = ap.parse_args()
     water = Path(args.water)
@@ -158,6 +194,7 @@ def main() -> None:
                       "run scripts/12_safety_eval.py")
     lines += included(water / "quantization" / "summary.md", "4. CircuitKIT mixed-precision quantization",
                       "run scripts/13_circuitkit_quantize.py")
+    lines += hardening(water, Path(args.hardened))
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text("\n".join(lines) + "\n")
     print("\n".join(lines))

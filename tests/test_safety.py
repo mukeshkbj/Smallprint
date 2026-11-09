@@ -109,3 +109,36 @@ def test_rejudge_relabels_saved_responses(tmp_path):
     rows = list(read_jsonl(tmp_path / "m__xstest.responses.jsonl"))
     assert [r["label"] for r in rows] == ["unsafe", "safe"] and rows[0]["verdict"] == "full_refusal"
     assert json.loads((tmp_path / "m.json").read_text())["xstest"]["judged_by_llm"] == 1.0
+
+
+def test_hardening_texts_are_held_out_and_augment_keeps_gold():
+    import json
+    from smallprint.harden import PUSH_FAIR, PUSH_UNFAIR, augment, guess_lang
+    from smallprint.safety import INJECTIONS
+    test_strings = {t for variant in INJECTIONS.values() for t in variant.values()}
+    train_strings = {t for bank in (PUSH_FAIR, PUSH_UNFAIR) for texts in bank.values() for t in texts}
+    assert not test_strings & train_strings
+    assert set(PUSH_FAIR) == set(PUSH_UNFAIR) == set(INJECTIONS["control"])
+    assert guess_lang("Wir haften nicht für Schäden, die durch die Nutzung entstehen.") == "de"
+    assert guess_lang("Il fornitore non è responsabile per i danni derivanti dal servizio.") == "it"
+    assert guess_lang("Usługodawca nie ponosi odpowiedzialności za szkody i nie zwraca opłat.") == "pl"
+    assert guess_lang("We may terminate your account at any time for any reason.") == "en"
+
+    def row(text, unfair):
+        gold = {"unfair": unfair, "categories": ["ter"] if unfair else [], "evidence": text[:20] if unfair else "",
+                "explanation": "x" if unfair else ""}
+        return {"messages": [{"role": "system", "content": "S"}, {"role": "user", "content": text},
+                             {"role": "assistant", "content": json.dumps(gold)}]}
+    rows = [row(f"We may terminate your account at any time, case {i}.", True) for i in range(5)] + \
+           [row(f"You can contact support by email, case {i}.", False) for i in range(5)]
+    out = augment(rows, n_unfair=3, n_fair=2, seed=1)
+    assert len(out) == 5
+    for r in out:
+        msgs = {m["role"]: m["content"] for m in r["messages"]}
+        gold = json.loads(msgs["assistant"])
+        assert msgs["user"].endswith(r["augmentation"]["injection"])
+        bank = PUSH_FAIR if gold["unfair"] else PUSH_UNFAIR
+        assert r["augmentation"]["injection"] in bank["en"]
+        if gold["unfair"]:
+            assert gold["evidence"] in msgs["user"]
+    assert rows[0]["messages"][1]["content"].endswith("case 0.")  # originals untouched

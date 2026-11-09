@@ -9,6 +9,7 @@ Usage:
   python scripts/02_train_sft.py
   python scripts/02_train_sft.py --max-steps 30     # smoke test
   python scripts/02_train_sft.py --push             # upload the adapter
+  python scripts/02_train_sft.py --dataset-dir data/smallprint-sft-hardened   # injection-hardened data
 """
 
 from __future__ import annotations
@@ -52,6 +53,8 @@ def main() -> None:
     ap.add_argument("--max-steps", type=int, default=-1)
     ap.add_argument("--push", action="store_true")
     ap.add_argument("--no-merge", action="store_true")
+    ap.add_argument("--dataset-dir", help="SFT dataset folder (default <work_dir>/smallprint-sft), "
+                                          "e.g. data/smallprint-sft-hardened from step 15")
     args = ap.parse_args()
     cfg = load_config(args.config)
     s, m = cfg["sft"], cfg["model"]
@@ -61,7 +64,7 @@ def main() -> None:
 
     trainer = create_sft_trainer(
         model_name=m["base"],
-        dataset_name=str(Path(cfg["data"]["work_dir"]) / "smallprint-sft"),
+        dataset_name=args.dataset_dir or str(Path(cfg["data"]["work_dir"]) / "smallprint-sft"),
         config_name="sft_messages",
         split="train",
         backend=s["backend"],
