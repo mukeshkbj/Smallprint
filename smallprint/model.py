@@ -136,6 +136,27 @@ class HFClauseModel(_TimedMixin):
         return outs
 
 
+    def chat(self, prompts: Sequence[str], max_new_tokens: int = 256, system: str | None = None) -> list[str]:
+        """Plain chat with the same weights (no Smallprint prompt), for general safety probes."""
+        import torch
+
+        outs: list[str] = []
+        for i in range(0, len(prompts), self.batch_size):
+            batch = prompts[i : i + self.batch_size]
+            texts = [
+                self.tok.apply_chat_template(
+                    ([{"role": "system", "content": system}] if system else []) + [{"role": "user", "content": p}],
+                    tokenize=False, add_generation_prompt=True)
+                for p in batch
+            ]
+            enc = self.tok(texts, return_tensors="pt", padding=True, add_special_tokens=False).to(self.model.device)
+            with torch.no_grad():
+                gen = self.model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
+                                          pad_token_id=self.tok.pad_token_id)
+            outs.extend(self.tok.batch_decode(gen[:, enc["input_ids"].shape[1]:], skip_special_tokens=True))
+        return outs
+
+
 class VLLMClauseModel(_TimedMixin):
     def __init__(self, model_id: str, adapter_path: str | None = None, system_prompt: str = SYSTEM_PROMPT,
                  max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, max_model_len: int = 4096,
