@@ -36,10 +36,10 @@ def main() -> None:
 
     def push():
         api.create_repo(repo, repo_type="dataset", private=cfg["hub"]["private"], exist_ok=True)
-        api.upload_folder(folder_path=str(out), path_in_repo="results", repo_id=repo, repo_type="dataset",
+        api.upload_folder(folder_path=str(out), path_in_repo=out.name, repo_id=repo, repo_type="dataset",
                           commit_message="Upload evaluation results")
     if safe_push(repo, push):
-        print("pushed", f"https://huggingface.co/datasets/{repo}/tree/main/results")
+        print("pushed", f"https://huggingface.co/datasets/{repo}/tree/main/{out.name}")
         return
     # Last step of an HF Job: if the upload fails, put the numbers in the log so they aren't lost.
     for f in sorted(out.glob("*.json")) + [out / "summary.md"]:

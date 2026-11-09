@@ -96,6 +96,8 @@ def main() -> None:
     ap.add_argument("--step", action="append", default=[], metavar="CMD",
                     help="run these commands instead of the pipeline steps (repeatable)")
     ap.add_argument("--name", default="smallprint-full-run")
+    ap.add_argument("--env", action="append", default=[], metavar="KEY=VALUE",
+                    help="extra environment for the job, e.g. SMALLPRINT_MODEL__BASE=CohereLabs/tiny-aya-global")
     args = ap.parse_args()
 
     if args.logs:
@@ -107,6 +109,9 @@ def main() -> None:
     env = {**GPU_ENV, "SMALLPRINT_HUB__USER": args.hf_user}
     if args.public:
         env["SMALLPRINT_HUB__PRIVATE"] = "false"
+    for kv in args.env:
+        k, _, v = kv.partition("=")
+        env[k] = v
     steps = STEPS[args.from_step:]
     if any("02_train_sft" in s for s in STEPS[:args.from_step]):
         # SFT isn't retrained, so its saved predictions are still valid: re-score them, don't regenerate

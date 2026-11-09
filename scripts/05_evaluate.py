@@ -88,6 +88,8 @@ def main() -> None:
     ap.add_argument("--config")
     ap.add_argument("--final", help="final model dir or Hub id (default runs/dpo/final)")
     ap.add_argument("--with-sft", action="store_true", help="also score base+SFT adapter")
+    ap.add_argument("--sft-merged", action="store_true",
+                    help="score the merged SFT model (runs/sft/merged) instead of base+adapter: same weights, faster")
     ap.add_argument("--skip-base", action="store_true")
     ap.add_argument("--skip-final", action="store_true", help="baseline only (before any training)")
     ap.add_argument("--reuse-base", action="store_true",
@@ -109,7 +111,9 @@ def main() -> None:
     if not args.skip_base:
         runs.append(("base", "hf", cfg["model"]["base"], None))
     if args.with_sft:
-        runs.append(("sft", "hf", cfg["model"]["base"], str(Path(cfg["sft"]["output_dir"]) / "adapter")))
+        sft_dir = Path(cfg["sft"]["output_dir"])
+        runs.append(("sft", "hf", str(sft_dir / "merged"), None) if args.sft_merged
+                    else ("sft", "hf", cfg["model"]["base"], str(sft_dir / "adapter")))
     if not args.skip_final:
         runs.append(("final", "hf", args.final or str(Path(cfg["dpo"]["output_dir"]) / "final"), None))
     if e.get("reference_model"):
