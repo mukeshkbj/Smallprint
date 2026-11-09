@@ -43,28 +43,63 @@ def resolve_models(spec: str, cfg: dict) -> list[tuple[str, str]]:
     return out
 
 
-def make_judge(cfg: dict, enabled: bool):
-    if not enabled or not cfg["judge"].get("model"):
+def make_judge(cfg: dict, enabled: bool, model: str | None = None):
+    if not enabled or not (model or cfg["judge"].get("model")):
         return None
     from smallprint.teacher import litellm_completion, resolve_api_key
     j = cfg["judge"]
-    return litellm_completion(j["model"], temperature=0.0, max_tokens=10, api_base=j.get("api_base"),
+    return litellm_completion(model or j["model"], temperature=0.0, max_tokens=10, api_base=j.get("api_base"),
                               api_key=resolve_api_key(j))
 
 
-def label_all(rows: list[dict], responses: list[str], judge, workers: int = 8) -> tuple[list[str], list[str]]:
+def label_all(rows: list[dict], responses: list[str], judge, workers: int = 4, attempts: int = 6,
+              wait: float = 5.0) -> tuple[list[str], list[str]]:
+    """LLM-judge labels, retried with backoff (the router answers "model busy" under load); a keyword
+    label only when the judge still fails, recorded as labelled_by="keyword" so the share is reported."""
+    import time
+
     def one(i: int) -> tuple[str, str]:
         if judge is not None:
-            try:
-                lab = parse_judge(judge(JUDGE_PROMPT.format(prompt=rows[i]["prompt"], response=responses[i][:2000])))
-                if lab:
-                    return lab, "judge"
-            except Exception as e:  # noqa: BLE001 - fall back to keywords on any API error
-                print("judge error:", str(e)[:120], flush=True)
+            for attempt in range(attempts):
+                try:
+                    lab = parse_judge(judge(JUDGE_PROMPT.format(prompt=rows[i]["prompt"],
+                                                                response=responses[i][:2000])))
+                    if lab:
+                        return lab, "judge"
+                    break  # answered, but not with a label: retrying the same prompt won't help
+                except Exception as e:  # noqa: BLE001 - fall back to keywords on any API error
+                    if attempt == attempts - 1:
+                        print("judge error:", str(e)[:120], flush=True)
+                    else:
+                        time.sleep(wait * 2 ** attempt)
         return keyword_label(responses[i]), "keyword"
     with ThreadPoolExecutor(workers) as ex:
         res = list(ex.map(one, range(len(rows))))
     return [r[0] for r in res], [r[1] for r in res]
+
+
+def rejudge(out: Path, names: list[str], judge, group_of: dict[str, dict[str, str]]) -> dict[str, dict]:
+    """Re-label the saved AdvBench/XSTest responses of every model with the same judge, so refusal rates
+    are comparable across models even if the judge failed during the original run. Outputs unchanged.
+    group_of[suite][id] is the prompt's safe/unsafe group (files written before the "verdict" key
+    stored the judge label under "label", so the group is taken from the source datasets)."""
+    all_results = {}
+    for name in names:
+        results = json.loads((out / f"{name}.json").read_text())
+        for suite in ("harmful", "xstest"):
+            f = out / f"{name}__{suite}.responses.jsonl"
+            if not f.exists():
+                continue
+            rows = [{**r, "label": group_of[suite][r["id"]]} for r in read_jsonl(f)]
+            labels, how = label_all(rows, [r["response"] for r in rows], judge)
+            met = refusal_metrics(rows, labels)
+            met["judged_by_llm"] = sum(h == "judge" for h in how) / len(how)
+            results[suite] = met
+            write_jsonl(f, [{**r, "verdict": lab, "labelled_by": h} for r, lab, h in zip(rows, labels, how)])
+            print(f"{name} {suite} (re-judged): {met}", flush=True)
+        (out / f"{name}.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
+        all_results[name] = results
+    return all_results
 
 
 def run_model(name: str, repo: str, args, cfg: dict, judge, out: Path) -> dict:
@@ -99,8 +134,8 @@ def run_model(name: str, repo: str, args, cfg: dict, judge, out: Path) -> dict:
         met = refusal_metrics(rows, labels)
         met["judged_by_llm"] = sum(h == "judge" for h in how) / len(how)
         results[suite] = met
-        write_jsonl(out / f"{name}__{suite}.responses.jsonl",
-                    [{**r, "response": resp, "label": lab, "labelled_by": h}
+        write_jsonl(out / f"{name}__{suite}.responses.jsonl",  # label = the prompt's safe/unsafe group
+                    [{**r, "response": resp, "verdict": lab, "labelled_by": h}
                      for r, resp, lab, h in zip(rows, responses, labels, how)])
         print(f"{name} {suite}: {met}", flush=True)
 
@@ -152,6 +187,9 @@ def summary_md(all_results: dict[str, dict]) -> str:
     lines += [row("AdvBench harmful requests refused (higher is safer)", lambda r: r["harmful"]["unsafe.refusal_rate"]),
               row("XSTest unsafe prompts refused (higher is safer)", lambda r: r["xstest"]["unsafe.refusal_rate"]),
               row("XSTest safe prompts answered (higher is better)", lambda r: r["xstest"]["safe.full_compliance_rate"]),
+              row("Refusal labels from the LLM judge (rest: keyword fallback)",
+                  lambda r: (r["harmful"]["judged_by_llm"] * r["harmful"]["n"] + r["xstest"]["judged_by_llm"]
+                             * r["xstest"]["n"]) / (r["harmful"]["n"] + r["xstest"]["n"])),
               row("Unfair clauses flagged, clean", lambda r: r["injection"]["clean_flag_rate"]),
               row("Unfair clauses flagged, harmless sentence added", lambda r: r["injection"]["control.flag_rate"])]
     lines += [row(f"Injection '{a}': flags removed (lower is better)", lambda r, a=a: r["injection"][f"{a}.attack_success"])
@@ -173,14 +211,26 @@ def main() -> None:
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--no-judge", action="store_true")
+    ap.add_argument("--judge-model", help="override judge.model, e.g. openai/<repo>:<provider> on the HF router")
+    ap.add_argument("--rejudge", action="store_true",
+                    help="no generation: re-label the saved AdvBench/XSTest responses of --models with one judge")
     args = ap.parse_args()
     args.suites = [s for s in args.suites.split(",") if s]
     cfg = load_config(args.config)
     out = Path(cfg["eval"]["out_dir"]) / "safety"
     out.mkdir(parents=True, exist_ok=True)
-    judge = make_judge(cfg, not args.no_judge)
-    all_results = {name: run_model(name, repo, args, cfg, judge, out)
-                   for name, repo in resolve_models(args.models, cfg)}
+    judge = make_judge(cfg, not args.no_judge, args.judge_model)
+    if args.rejudge:
+        if judge is None:
+            raise SystemExit("--rejudge needs a judge (drop --no-judge)")
+        print("judge:", args.judge_model or cfg["judge"]["model"], "| probe:", judge("Reply with the word ok."), flush=True)
+        cache = Path(cfg["data"]["work_dir"]) / "safety_cache"
+        group_of = {"harmful": {r["id"]: r["label"] for r in load_advbench(cache, None)},
+                    "xstest": {r["id"]: r["label"] for r in load_xstest(cache)}}
+        all_results = rejudge(out, [name for name, _ in resolve_models(args.models, cfg)], judge, group_of)
+    else:
+        all_results = {name: run_model(name, repo, args, cfg, judge, out)
+                       for name, repo in resolve_models(args.models, cfg)}
     md = summary_md(all_results)
     (out / "summary.md").write_text(md)
     print(md)
