@@ -181,7 +181,14 @@ def main() -> None:
     csv_path = out / "discovery_pairs.csv"
     pd.DataFrame(pairs).to_csv(csv_path, index=False)
     register_task(csv_path)
-    hooked = ck.load_model(repo, dtype=args.dtype, device=device, algorithm="eap-ig")
+    # CircuitKIT 0.2.1 maps a Cohere2 model to its TransformerLens port either by a known Hub name
+    # (CohereLabs/tiny-aya-*) or by a local folder's config.json; an unlisted Hub id such as our
+    # fine-tune falls through to TransformerLens, which rejects Cohere2. So load from a local copy.
+    local = repo
+    if not Path(repo).expanduser().is_dir():
+        from huggingface_hub import snapshot_download
+        local = snapshot_download(repo, allow_patterns=["*.json", "*.safetensors", "*.model", "*.txt", "*.jinja"])
+    hooked = ck.load_model(local, dtype=args.dtype, device=device, algorithm="eap-ig")
     circuit = ck.discover(hooked, TASK, algorithm="eap-ig", level="node", n_examples=len(pairs),
                           batch_size=args.discovery_batch, output_path=str(out / "circuit.pt"))
     top = sorted(circuit.scores.items(), key=lambda kv: -abs(kv[1]))[:30]
