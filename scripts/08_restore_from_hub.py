@@ -82,8 +82,11 @@ def main() -> None:
         if (tmp / "results").exists():
             out = Path(cfg["eval"]["out_dir"])
             out.mkdir(parents=True, exist_ok=True)
-            for f in (tmp / "results").iterdir():
-                shutil.copy2(f, out / f.name)
+            for f in (tmp / "results").iterdir():  # includes safety/ and quantization/ subfolders
+                if f.is_dir():
+                    shutil.copytree(f, out / f.name, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(f, out / f.name)
             print("restored results ->", out)
     for spec in args.results_from:
         run, rev = spec.split("@", 1)
