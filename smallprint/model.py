@@ -104,6 +104,20 @@ class HFClauseModel(_TimedMixin):
         self.name = f"hf:{model_id}" + (f"+{adapter_id}" if adapter_id else "")
         self._reset_stats()
 
+    @classmethod
+    def from_loaded(cls, model, tok, name: str, system_prompt: str = SYSTEM_PROMPT,
+                    max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, batch_size: int = 8) -> "HFClauseModel":
+        """Wrap a model that is already in memory (e.g. after quantization)."""
+        self = cls.__new__(cls)
+        self.system_prompt, self.max_new_tokens, self.batch_size = system_prompt, max_new_tokens, batch_size
+        self.tok, self.model, self.name = tok, model, name
+        self.tok.padding_side = "left"
+        if self.tok.pad_token is None:
+            self.tok.pad_token = self.tok.eos_token
+        self.model.eval()
+        self._reset_stats()
+        return self
+
     def __call__(self, clauses: Sequence[str]) -> list[str]:
         import torch
 

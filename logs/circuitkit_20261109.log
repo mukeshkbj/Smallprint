@@ -1,0 +1,102 @@
+2026-11-09 17:52:40,809 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:52:40,810 - circuitkit.discovery - INFO - _log_with_context:194 - Starting: Circuit Discovery
+2026-11-09 17:52:40,810 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:52:40,810 - circuitkit.discovery - INFO - _log_with_context:194 - [1/4] Loading and validating configuration
+2026-11-09 17:52:40,810 - circuitkit.config - INFO - _validate_config:267 - Configuration validated successfully.
+2026-11-09 17:52:40,811 - circuitkit.discovery - INFO - _log_with_context:194 - Config: EAP-IG on smallprint_unfair task, node level, 30% sparsity
+2026-11-09 17:52:40,811 - circuitkit.discovery - INFO - _log_with_context:194 - [2/4] Setting up model (model=/tmp/cktest/tiny)
+2026-11-09 17:52:40,811 - circuitkit.discovery - INFO - _log_with_context:194 - Model: /tmp/cktest/tiny (304,944 params, cpu device)
+2026-11-09 17:52:40,811 - circuitkit.discovery - INFO - _log_with_context:194 - [3/4] Running discovery algorithm (algorithm=eap-ig)
+2026-11-09 17:52:40,811 - circuitkit.discovery - INFO - _log_with_context:194 - Starting EAP-IG discovery algorithm
+2026-11-09 17:52:40,825 - circuitkit.backends.eap.eap_utils - WARNING - tokenize_batch_pair:266 - tokenize_batch_pair: 2 of 2 contrastive pair(s) have unequal clean/corrupt token counts (clean max=402, corrupt max=401; 2 misaligned pair(s) across 1 batch(es) so far this process). EAP aligns by end-padding (pair_padding_side='left'), which preserves per-position correspondence ONLY when the length difference is at that end. Mid-sequence length-changing corruptions will misalign and the attribution for those pairs is unreliable — prefer minimal, token-length-preserving contrastive pairs. (Warning repeats every 100th misaligned batch.)
+2026-11-09 17:52:42,794 - circuitkit.backends.eap.circuit_kit_adapter - INFO - convert_eap_graph_to_circuitkit_scores:91 - Converted 20 node scores from EAP-IG graph to CircuitKIT format.
+2026-11-09 17:52:42,796 - circuitkit.discovery - INFO - _log_with_context:194 - Saved unified CircuitScores → /tmp/cktest/results/quantization/circuit_scores.json
+2026-11-09 17:52:42,797 - circuitkit.discovery - INFO - _log_with_context:194 - Saved 'scores' → /tmp/cktest/results/quantization/circuit_scores.pt
+2026-11-09 17:52:42,798 - circuitkit.discovery - INFO - _log_with_context:194 - [4/4] Identifying nodes to prune
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:54 - 
+--- Running Categorized Node Pruning (Scope: BOTH) ---
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:75 - Found 16 Attention Heads and 4 MLP layers to consider for pruning.
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:87 - Pruning 1 out of 4 MLP layers (30%).
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:96 - Targeting to prune 4 out of 16 total Attention Heads (30%).
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:121 - Actually pruned 4 Attention Heads.
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:124 -   - Layer 1: Pruned 2/4 heads.
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:124 -   - Layer 3: Pruned 2/4 heads.
+2026-11-09 17:52:42,798 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:128 - --- Categorized Pruning Finished ---
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 -   Pruned 5 nodes out of 20 candidates
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 - Pruned node list saved to /tmp/cktest/results/quantization/circuit.pt
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 - Completed: Circuit Discovery in 2.0s
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 - Summary: nodes_pruned=5
+2026-11-09 17:52:42,799 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:52:43,335 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:52:43,336 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:52:43,336 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (8 pattern(s)) …
+2026-11-09 17:52:43,342 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:52:43,355 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:52:43,356 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 28/28 QModule(s) frozen (packed low-bit weights).
+2026-11-09 17:52:43,356 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:52:43,357 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:03,533 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:53:03,533 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:53:03,534 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (6 pattern(s)) …
+2026-11-09 17:53:03,538 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:03,542 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:03,542 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 21/21 QModule(s) frozen (packed low-bit weights).
+2026-11-09 17:53:03,542 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:03,543 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:03,879 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:53:03,879 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:53:03,879 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (6 pattern(s)) …
+2026-11-09 17:53:03,883 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:03,887 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:03,888 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 21/21 QModule(s) frozen (packed low-bit weights).
+2026-11-09 17:53:03,888 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:03,889 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:28,269 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:53:28,269 - circuitkit.discovery - INFO - _log_with_context:194 - Starting: Circuit Discovery
+2026-11-09 17:53:28,269 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:53:28,269 - circuitkit.discovery - INFO - _log_with_context:194 - [1/4] Loading and validating configuration
+2026-11-09 17:53:28,270 - circuitkit.config - INFO - _validate_config:267 - Configuration validated successfully.
+2026-11-09 17:53:28,270 - circuitkit.discovery - INFO - _log_with_context:194 - Config: EAP-IG on smallprint_unfair task, node level, 30% sparsity
+2026-11-09 17:53:28,270 - circuitkit.discovery - INFO - _log_with_context:194 - [2/4] Setting up model (model=/tmp/cktest/tiny)
+2026-11-09 17:53:28,271 - circuitkit.discovery - INFO - _log_with_context:194 - Model: /tmp/cktest/tiny (304,944 params, cpu device)
+2026-11-09 17:53:28,271 - circuitkit.discovery - INFO - _log_with_context:194 - [3/4] Running discovery algorithm (algorithm=eap-ig)
+2026-11-09 17:53:28,271 - circuitkit.discovery - INFO - _log_with_context:194 - Starting EAP-IG discovery algorithm
+2026-11-09 17:53:28,280 - circuitkit.backends.eap.eap_utils - WARNING - tokenize_batch_pair:266 - tokenize_batch_pair: 2 of 2 contrastive pair(s) have unequal clean/corrupt token counts (clean max=402, corrupt max=401; 2 misaligned pair(s) across 1 batch(es) so far this process). EAP aligns by end-padding (pair_padding_side='left'), which preserves per-position correspondence ONLY when the length difference is at that end. Mid-sequence length-changing corruptions will misalign and the attribution for those pairs is unreliable — prefer minimal, token-length-preserving contrastive pairs. (Warning repeats every 100th misaligned batch.)
+2026-11-09 17:53:29,427 - circuitkit.backends.eap.circuit_kit_adapter - INFO - convert_eap_graph_to_circuitkit_scores:91 - Converted 20 node scores from EAP-IG graph to CircuitKIT format.
+2026-11-09 17:53:29,429 - circuitkit.discovery - INFO - _log_with_context:194 - Saved unified CircuitScores → /tmp/cktest/results/quantization/circuit_scores.json
+2026-11-09 17:53:29,430 - circuitkit.discovery - INFO - _log_with_context:194 - Saved 'scores' → /tmp/cktest/results/quantization/circuit_scores.pt
+2026-11-09 17:53:29,430 - circuitkit.discovery - INFO - _log_with_context:194 - [4/4] Identifying nodes to prune
+2026-11-09 17:53:29,430 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:54 - 
+--- Running Categorized Node Pruning (Scope: BOTH) ---
+2026-11-09 17:53:29,430 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:75 - Found 16 Attention Heads and 4 MLP layers to consider for pruning.
+2026-11-09 17:53:29,430 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:87 - Pruning 1 out of 4 MLP layers (30%).
+2026-11-09 17:53:29,430 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:96 - Targeting to prune 4 out of 16 total Attention Heads (30%).
+2026-11-09 17:53:29,431 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:121 - Actually pruned 4 Attention Heads.
+2026-11-09 17:53:29,431 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:124 -   - Layer 1: Pruned 2/4 heads.
+2026-11-09 17:53:29,431 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:124 -   - Layer 3: Pruned 2/4 heads.
+2026-11-09 17:53:29,431 - circuitkit.applications.pruning.node_pruner - INFO - get_nodes_to_prune:128 - --- Categorized Pruning Finished ---
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 -   Pruned 5 nodes out of 20 candidates
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 - Pruned node list saved to /tmp/cktest/results/quantization/circuit.pt
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 - Completed: Circuit Discovery in 1.2s
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 - Summary: nodes_pruned=5
+2026-11-09 17:53:29,431 - circuitkit.discovery - INFO - _log_with_context:194 - ==================================================
+2026-11-09 17:53:29,947 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:53:29,947 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:53:29,947 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (8 pattern(s)) …
+2026-11-09 17:53:29,953 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:29,960 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:29,960 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 28/28 QModule(s) frozen (packed low-bit weights).
+2026-11-09 17:53:30,304 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:53:30,305 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:53:30,305 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (6 pattern(s)) …
+2026-11-09 17:53:30,309 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:30,313 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:30,313 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 21/21 QModule(s) frozen (packed low-bit weights).
+2026-11-09 17:53:30,632 - circuitkit.applications.arch_utils - INFO - detect_model_architecture:46 - Detected architecture: cohere2 → cohere family
+2026-11-09 17:53:30,632 - circuitkit.applications.arch_utils - INFO - validate_model_paths:145 - ✓ Validated cohere2 architecture
+2026-11-09 17:53:30,632 - circuitkit.applications.quantization.quant_utils - INFO - _quantize_tier:580 - [quant] Quantizing low-tier layers to quanto.qint4 (6 pattern(s)) …
+2026-11-09 17:53:30,636 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:650 - [quant] Freezing quantized weights …
+2026-11-09 17:53:30,640 - circuitkit.applications.quantization.quant_utils - INFO - freeze_model:652 - [quant] Freeze complete.
+2026-11-09 17:53:30,640 - circuitkit.applications.quantization.quant_utils - INFO - _apply_plan_to_model:623 - [quant] Guard OK: 21/21 QModule(s) frozen (packed low-bit weights).
