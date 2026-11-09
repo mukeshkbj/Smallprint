@@ -247,19 +247,22 @@ def main() -> None:
 def summary_md(summary: dict) -> str:
     vs = summary["versions"]
     sets = [k for k in next(iter(vs.values())) if k not in ("weights", "plan", "clauses_per_second")] if vs else []
+    cols = (("unfair_f1", "unfair F1"), ("category_macro_f1", "macro-F1"), ("false_alarm_rate", "false alarms"),
+            ("miss_rate", "missed unfair"))
     lines = [f"# Quantization with CircuitKIT ({summary['model']})", "",
              f"Circuit found with EAP-IG on {summary['n_pairs']} fair/unfair label-swap pairs; "
              f"`circuit` keeps the top {summary['high_fraction']:.0%} of layers in bf16, `random` keeps the same "
-             "number chosen at random, `uniform` keeps none.", "",
-             "| Version | Weights (GB) | " + " | ".join(f"{s} unfair F1 | {s} macro-F1" for s in sets) + " | clauses/s |",
-             "|---|---:|" + "---:|---:|" * len(sets) + "---:|"]
-    for name, r in vs.items():
-        cells = [f"{r['weights']['total_gb']:.2f}"]
-        for s in sets:
-            cells += [f"{r[s].get('unfair_f1', float('nan')):.3f}", f"{r[s].get('category_macro_f1', float('nan')):.3f}"]
-        cps = r.get("clauses_per_second")
-        cells.append(f"{cps:.1f}" if cps else "–")
-        lines.append(f"| {name} | " + " | ".join(cells) + " |")
+             "number chosen at random, `uniform` keeps none. False alarms and missed unfair clauses are lower-is-better; "
+             "F1 alone hides a shift between them.", ""]
+    for s in sets:
+        lines += [f"### {s}", "", "| Version | Weights (GB) | " + " | ".join(c for _, c in cols) + " | clauses/s |",
+                  "|---|---:|" + "---:|" * len(cols) + "---:|"]
+        for name, r in vs.items():
+            cells = [f"{r['weights']['total_gb']:.2f}"] + [f"{r[s].get(k, float('nan')):.3f}" for k, _ in cols]
+            cps = r.get("clauses_per_second")
+            cells.append(f"{cps:.1f}" if cps else "–")
+            lines.append(f"| {name} | " + " | ".join(cells) + " |")
+        lines.append("")
     return "\n".join(lines) + "\n"
 
 
