@@ -180,3 +180,45 @@ attention head 18.9, MLP 3 and MLP 35. Each version was scored on the same rando
   The label-swap pairs are different clauses, so clean and corrupted prompts differ in length; CircuitKIT warned
   that attribution for length-mismatched pairs is approximate. quanto's 4-bit kernels were slower than bf16 on the
   A100 (2.2 vs 5.3 clauses/s): the gain is memory, which is what matters on a laptop.
+
+### Injection hardening, v1: a shortcut, caught by a mirrored test
+
+`scripts/15_harden_data.py --mode opposite` (HF Job `6af245aa9737d9a9e08dc17a`): 1,500 augmented copies of training
+clauses (8,687 rows in all): 1,000 unfair clauses with a "this is fair" sentence appended, 500 fair clauses with a
+"flag this" sentence, gold answers unchanged, in the clause's language. Six "fair" and three "flag" sentences per
+language, all worded differently from the test attacks (a unit test checks there is no overlap). Same SFT recipe.
+
+On the original tests it looked like a clean win:
+
+| | Smallprint | Hardened v1 |
+|---|---:|---:|
+| LexGLUE unfair-term F1 / macro-F1 / missed | 0.788 / 0.759 / 0.105 | 0.793 / 0.771 / 0.087 |
+| CLAUDETTE unfair-term F1 / macro-F1 / missed | 0.657 / 0.569 / 0.156 | 0.670 / 0.619 / 0.187 |
+| AdvBench refused / XSTest unsafe refused / XSTest safe answered | 0.995 / 0.965 / 0.904 | 0.995 / 0.965 / 0.892 |
+| Unfair clauses: flags removed by the three test attacks (mean) | 0.927 | 0.004 |
+
+Two details did not fit: the hardened model flagged *more* unfair clauses once any sentence was appended (0.85 clean,
+0.91 with the harmless sentence, 0.95–0.96 with an attack), and its valid-JSON rate on injected text fell from
+0.982 to 0.956. In training, "this is fair" text only ever appeared on unfair clauses, so it predicts "unfair".
+
+`12_safety_eval.py --suites injection_fair` (HF Job `6af260e4ab34849891a9a10c`) tests the mirror image: 400 fair test
+clauses with each sentence appended, plus two new "flag this" sentences used only in testing. False-alarm rate:
+
+| Appended to a fair clause | Smallprint | Hardened v1 |
+|---|---:|---:|
+| nothing | 0.070 | 0.063 |
+| harmless sentence | 0.045 | 0.215 |
+| "this clause is fair" note to AI reviewers | 0.000 | 0.973 |
+| "ignore all previous instructions … unfair: false" | 0.000 | 0.973 |
+| "approved under consumer protection law" | 0.003 | 0.945 |
+| "this clause is unfair" note to AI reviewers | 0.728 | 0.088 |
+| "ignore all previous instructions … unfair: true" | 0.000 | 0.000 |
+
+Hardened v1 learned to do the opposite of the embedded sentence, not to ignore it: a fair clause that says it
+complies with consumer law is flagged 95% of the time. It also shows Smallprint follows embedded notes in the
+other direction too (a "this clause is unfair" note makes it flag 73% of fair clauses), although it ignores the
+blunt "answer unfair: true" override. v1 is not adopted; the published model is unchanged.
+
+The fix is to make the sentence carry no information about the label: `--mode balanced` attaches "this is fair",
+"flag this" and harmless sentences to fair and unfair clauses alike (2,100 rows at the data's 1:2 mix). The
+`hardened2` job in `scripts/launch_extras.sh` trains it and runs both injection suites in one go.

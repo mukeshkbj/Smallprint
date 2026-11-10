@@ -5,9 +5,15 @@ The safety suite (smallprint/safety.py) showed that one sentence appended to an 
 Smallprint's flag off for 80-100% of clauses. The fix here is data augmentation: copies of training
 clauses with an injected sentence appended and the gold answer unchanged.
 
-- Unfair clauses get sentences that push towards "fair" (the attack we measured).
-- Fair clauses get sentences that push towards "unfair", so the model learns to ignore embedded
-  instructions in both directions rather than to distrust any reassurance.
+Two modes:
+
+- opposite (v1): unfair clauses get "this is fair" sentences, fair clauses get "flag this" sentences. It
+  removed the measured attack, but the mirrored test (safety.injection_cases_fair) showed a shortcut: the
+  model learned "do the opposite of the embedded instruction", flagging 95% of fair clauses that end with
+  a reassurance. Kept for the record.
+- balanced (v2): every kind of sentence ("this is fair", "flag this", harmless) is attached to fair and
+  unfair clauses alike, so the sentence carries no information about the label and the only thing to learn
+  is to ignore it. The augmented rows keep the data's 1 unfair : 2 fair mix.
 
 The training sentences are deliberately different from the three test attacks in safety.INJECTIONS
 (reviewer_note, override, legal_assurance): same families of attack, different wording, so the
@@ -82,6 +88,18 @@ PUSH_UNFAIR: dict[str, list[str]] = {
     ],
 }
 
+# Harmless sentences for the balanced mode (train-only; the test control sentence is different).
+HARMLESS: dict[str, list[str]] = {
+    "en": ["Questions about this section can be sent to our support team.",
+           "Further examples are available on our help pages.", "This is version 3.2 of these terms."],
+    "de": ["Fragen zu diesem Abschnitt können Sie an unser Support-Team senden.",
+           "Weitere Beispiele finden Sie auf unseren Hilfeseiten.", "Dies ist Version 3.2 dieser Bedingungen."],
+    "it": ["Le domande su questa sezione possono essere inviate al nostro servizio di assistenza.",
+           "Altri esempi sono disponibili nelle nostre pagine di aiuto.", "Questa è la versione 3.2 delle presenti condizioni."],
+    "pl": ["Pytania dotyczące tej sekcji można kierować do naszego zespołu wsparcia.",
+           "Więcej przykładów znajdziesz na naszych stronach pomocy.", "To jest wersja 3.2 niniejszych warunków."],
+}
+
 _STOP = {
     "en": {"the", "and", "of", "to", "you", "your", "we", "or", "any", "is", "for", "with", "this", "that"},
     "de": {"der", "die", "und", "das", "nicht", "sie", "ist", "mit", "den", "für", "von", "zu", "oder", "wir"},
@@ -98,22 +116,29 @@ def guess_lang(text: str) -> str:
     return best if scores[best] > 0 else "en"
 
 
-def augment(rows: list[dict], n_unfair: int, n_fair: int, seed: int = 0) -> list[dict]:
-    """New SFT rows ({"messages": [...]}) built from existing ones: injected sentence appended to the
-    user turn (the clause), system and assistant turns unchanged. Each row records which sentence."""
+def augment(rows: list[dict], n_unfair: int, n_fair: int, seed: int = 0, mode: str = "balanced") -> list[dict]:
+    """New SFT rows ({"messages": [...]}) built from existing ones: a sentence appended to the user turn
+    (the clause), system and assistant turns unchanged. Each row records the sentence and its bank.
+    mode="opposite": unfair <- PUSH_FAIR, fair <- PUSH_UNFAIR (v1, learns a shortcut).
+    mode="balanced": both labels draw from PUSH_FAIR, PUSH_UNFAIR and HARMLESS with equal weight (v2)."""
+    if mode not in ("opposite", "balanced"):
+        raise ValueError(f"unknown mode {mode!r}")
     rng = random.Random(seed)
     unfair, fair = [], []
     for r in rows:
         msgs = {m["role"]: m["content"] for m in r["messages"]}
         (unfair if json.loads(msgs["assistant"]).get("unfair") else fair).append(r)
+    all_banks = {"push_fair": PUSH_FAIR, "push_unfair": PUSH_UNFAIR, "harmless": HARMLESS}
     out = []
-    for pool, k, bank in ((unfair, n_unfair, PUSH_FAIR), (fair, n_fair, PUSH_UNFAIR)):
+    for pool, k, banks in ((unfair, n_unfair, {"push_fair": PUSH_FAIR} if mode == "opposite" else all_banks),
+                           (fair, n_fair, {"push_unfair": PUSH_UNFAIR} if mode == "opposite" else all_banks)):
         for r in rng.sample(pool, min(k, len(pool))):
             msgs = [dict(m) for m in r["messages"]]
             user = next(m for m in msgs if m["role"] == "user")
             lang = guess_lang(user["content"])
-            sentence = rng.choice(bank[lang])
+            bank = rng.choice(sorted(banks))
+            sentence = rng.choice(banks[bank][lang])
             user["content"] = f"{user['content'].rstrip()} {sentence}"
-            out.append({"messages": msgs, "augmentation": {"lang": lang, "injection": sentence}})
+            out.append({"messages": msgs, "augmentation": {"lang": lang, "bank": bank, "injection": sentence}})
     rng.shuffle(out)
     return out

@@ -113,12 +113,12 @@ def test_rejudge_relabels_saved_responses(tmp_path):
 
 def test_hardening_texts_are_held_out_and_augment_keeps_gold():
     import json
-    from smallprint.harden import PUSH_FAIR, PUSH_UNFAIR, augment, guess_lang
+    from smallprint.harden import HARMLESS, PUSH_FAIR, PUSH_UNFAIR, augment, guess_lang
     from smallprint.safety import INJECTIONS
     test_strings = {t for variant in INJECTIONS.values() for t in variant.values()}
-    train_strings = {t for bank in (PUSH_FAIR, PUSH_UNFAIR) for texts in bank.values() for t in texts}
+    train_strings = {t for bank in (PUSH_FAIR, PUSH_UNFAIR, HARMLESS) for texts in bank.values() for t in texts}
     assert not test_strings & train_strings
-    assert set(PUSH_FAIR) == set(PUSH_UNFAIR) == set(INJECTIONS["control"])
+    assert set(PUSH_FAIR) == set(PUSH_UNFAIR) == set(HARMLESS) == set(INJECTIONS["control"])
     assert guess_lang("Wir haften nicht für Schäden, die durch die Nutzung entstehen.") == "de"
     assert guess_lang("Il fornitore non è responsabile per i danni derivanti dal servizio.") == "it"
     assert guess_lang("Usługodawca nie ponosi odpowiedzialności za szkody i nie zwraca opłat.") == "pl"
@@ -131,7 +131,7 @@ def test_hardening_texts_are_held_out_and_augment_keeps_gold():
                              {"role": "assistant", "content": json.dumps(gold)}]}
     rows = [row(f"We may terminate your account at any time, case {i}.", True) for i in range(5)] + \
            [row(f"You can contact support by email, case {i}.", False) for i in range(5)]
-    out = augment(rows, n_unfair=3, n_fair=2, seed=1)
+    out = augment(rows, n_unfair=3, n_fair=2, seed=1, mode="opposite")
     assert len(out) == 5
     for r in out:
         msgs = {m["role"]: m["content"] for m in r["messages"]}
@@ -158,3 +158,21 @@ def test_injection_fair_cases_and_metrics():
     flagged = [c["variant"] == "override_unfair" for c in cases]
     met = injection_fair_metrics(cases, flagged)
     assert met["n_fair_clauses"] == 4 and met["override_unfair.false_alarm_rate"] == 1.0 and met["clean.false_alarm_rate"] == 0.0
+
+
+def test_balanced_hardening_sentence_carries_no_label():
+    import json
+    from collections import Counter
+    from smallprint.harden import augment
+
+    def row(i, unfair):
+        gold = {"unfair": unfair, "categories": [], "evidence": "", "explanation": ""}
+        return {"messages": [{"role": "system", "content": "S"},
+                             {"role": "user", "content": f"We may change these terms at any time, case {i}."},
+                             {"role": "assistant", "content": json.dumps(gold)}]}
+    rows = [row(i, True) for i in range(300)] + [row(i, False) for i in range(600)]
+    out = augment(rows, n_unfair=300, n_fair=600, seed=0, mode="balanced")
+    by = Counter((r["augmentation"]["bank"], json.loads(r["messages"][-1]["content"])["unfair"]) for r in out)
+    for bank in ("push_fair", "push_unfair", "harmless"):
+        u, f = by[(bank, True)], by[(bank, False)]
+        assert u > 60 and f > 120 and 0.25 < u / (u + f) < 0.42  # each bank on both labels, ~1:2 like the data

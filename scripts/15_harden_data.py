@@ -5,8 +5,8 @@ Copies the SFT dataset folder and appends augmented copies of training clauses t
 an injected sentence after the clause, gold answer unchanged. The validation split is left alone.
 
 Usage:
-  python scripts/15_harden_data.py                       # data/smallprint-sft -> data/smallprint-sft-hardened
-  python scripts/15_harden_data.py --n-unfair 1000 --n-fair 500
+  python scripts/15_harden_data.py                       # balanced (v2): data/smallprint-sft -> ...-hardened
+  python scripts/15_harden_data.py --mode opposite --n-unfair 1000 --n-fair 500   # v1, learns a shortcut
 """
 
 from __future__ import annotations
@@ -30,8 +30,9 @@ def main() -> None:
     ap.add_argument("--config")
     ap.add_argument("--src")
     ap.add_argument("--out")
-    ap.add_argument("--n-unfair", type=int, default=1000, help="unfair clauses copied with a 'this is fair' injection")
-    ap.add_argument("--n-fair", type=int, default=500, help="fair clauses copied with a 'flag this' injection")
+    ap.add_argument("--mode", choices=["balanced", "opposite"], default="balanced")
+    ap.add_argument("--n-unfair", type=int, default=700, help="unfair clauses copied with an appended sentence")
+    ap.add_argument("--n-fair", type=int, default=1400, help="fair clauses copied with an appended sentence")
     args = ap.parse_args()
     cfg = load_config(args.config)
     work = Path(cfg["data"]["work_dir"])
@@ -45,11 +46,13 @@ def main() -> None:
         shutil.rmtree(out)
     shutil.copytree(src, out)
     rows = list(read_jsonl(train))
-    extra = augment(rows, args.n_unfair, args.n_fair, seed=cfg["seed"])
+    extra = augment(rows, args.n_unfair, args.n_fair, seed=cfg["seed"], mode=args.mode)
     write_jsonl(out / "train" / "sft_messages.jsonl",
                 rows + [{"messages": r["messages"]} for r in extra])  # same schema as the original rows
 
-    report = {"original_train_rows": len(rows), "augmented_rows": len(extra),
+    report = {"mode": args.mode, "original_train_rows": len(rows), "augmented_rows": len(extra),
+              "by_bank_and_label": dict(Counter(f"{r['augmentation']['bank']}|unfair="
+                                                 f"{json.loads(r['messages'][-1]['content'])['unfair']}" for r in extra)),
               "by_language": dict(Counter(r["augmentation"]["lang"] for r in extra)),
               "by_injection": dict(Counter(r["augmentation"]["injection"] for r in extra))}
     (out / "hardening_report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False))

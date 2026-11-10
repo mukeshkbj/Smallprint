@@ -1,4 +1,4 @@
-# Smallprint: write-up (skeleton for the HF article or README submission)
+# Smallprint: write-up
 
 > Numbers come from `results/summary.md`, `results/roi.md`, `docs/results.md` and the data build report.
 > The hackathon asks for: the metrics and why they were chosen; the approach and the reasons behind the
@@ -61,13 +61,44 @@
 
 ## 6. Results
 
-See `docs/results.md` for the full tables (base, SFT, DPO run 1; CLAUDETTE by language).
+Full tables: `docs/results.md`; every comparison in one place: `results/comparisons.md`.
 
-[3–5 sentences: what improved most, what didn't, one concrete example clause before vs after.]
+SFT did most of the work. On LexGLUE, valid JSON went from 25% to 99.9%, unfair-term F1 from 0.26 to 0.79 and
+category macro-F1 from 0.15 to 0.76, while false alarms on fair clauses fell from 23% to 4.5%. On held-out CLAUDETTE
+companies, F1 rose from 0.27 to 0.66 in four languages, with Polish the weakest (26% of unfair clauses missed).
+DPO did not beat SFT: run 1 tripled false alarms because its pairs favoured "unfair" two to one; the
+label-balanced run 2 came close but still lost on every F1. Tiny Aya Global ties with Water (promotion score
+0.697 vs 0.693); Water misses fewer unfair clauses in every CLAUDETTE language, so we kept it.
+
+One clause from the LexGLUE test set, before and after:
+
+> academia.edu reserves the right to suspend or terminate your account if any information provided during the
+> registration process or thereafter proves to be inaccurate , not current or incomplete .
+
+- Tiny Aya Water: `{"unfair": false, "categories": ["limitation_of_liability"], "evidence": "reserves the right to
+  suspend or terminate your account", ...}`: says "not unfair" while naming a category, and the wrong one.
+- Smallprint: `{"unfair": true, "categories": ["unilateral_termination"], "evidence": "academia.edu reserves the
+  right to suspend or terminate your account if any information ... incomplete .", "explanation": "The platform
+  can close your account at any time if they find any information you provided during registration to be false,
+  outdated, ..."}`: the expert label, a verbatim quote and a plain sentence.
+
+### Safety and robustness
+
+- General safety held: AdvBench harmful requests refused 100% → 99.5%, XSTest unsafe prompts refused 95.5% → 96.5%,
+  XSTest safe prompts answered 85.6% → 90.4%, AuditKIT red-team pass rate 0.856 for both (one LLM judge,
+  DeepSeek-V3.2, for every refusal label).
+- In-document prompt injection is the real risk: one sentence appended to an unfair clause removes 80–100% of
+  Smallprint's flags (a harmless sentence removes 8%).
+- Our first hardening run cut that to 0.4% and raised CLAUDETTE macro-F1 to 0.619, but a mirrored test showed it had
+  learned to do the opposite of the planted sentence (95–97% false alarms on fair clauses that end with a
+  reassurance). Not adopted; the balanced version is described in `docs/results.md`.
+- CircuitKIT mixed precision: uniform 4-bit (2.5 GB) keeps F1 but misses twice as many unfair clauses; keeping the
+  15% of layers in the fair/unfair circuit in bf16 (3.1 GB) stays close to bf16 and beats a random choice of the
+  same size, within the noise of a 1,600-clause sample.
 
 ## 7. Why it's better in use
 
-- [Before/after example: base model output vs Smallprint output on the same clause.]
+- The example in section 6: the base model's answer contradicts itself ("not unfair", with a category); Smallprint's can be checked word for word against the clause.
 - False alarms per typical policy: on a 100-clause policy with 90 fair clauses, the base model raises about 21
   false alarms and Smallprint (SFT) about 4, while catching 9 in 10 unfair clauses instead of 4 in 10 (LexGLUE rates).
 - Every flag can be checked against the quoted text, highlighted in the demo.
@@ -86,7 +117,13 @@ nothing at the margin, with the document never leaving the device. Prices checke
   privacy-practice categories, but its licence is non-commercial and share-alike).
 - Explanations come from a teacher and a judge; spot-checked, but not lawyer-reviewed.
 - Non-commercial licence inherited from Tiny Aya.
-- Next: GGUF build for the Chrome extension, more languages, SafeTune to check that the domain tuning hasn't weakened refusals.
+- Text inside a policy can switch flags off (section 6). Until a hardened model passes both injection tests, the app
+  should treat instruction-like sentences in a clause as a reason to show the clause to the user, not to trust the
+  verdict.
+- Data augmentation can teach shortcuts that the obvious test rewards: test the mirror image of every robustness claim.
+- Quantization results come from 1,600 clauses per test set; quanto's 4-bit kernels saved memory but were slower than
+  bf16 on an A100.
+- Next: balanced injection hardening (ready, `hardened2`), GGUF build for the Chrome extension, more languages.
 
 ## 10. Reproducing
 

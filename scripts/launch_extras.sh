@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch the follow-up HF Jobs suggested by the Lexsi team (global, safety, quant; hardened is opt-in). Needs HF_TOKEN in the environment
-# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant|hardened|injfair ...]
+# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant|hardened|injfair|hardened2 ...]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 which=("${@:-global safety quant}")
@@ -33,10 +33,20 @@ for job in ${which[@]}; do
         --env SMALLPRINT_HUB__SFT_ADAPTER_REPO=smallprint-tiny-aya-water-3b-hardened-sft-lora \
         --env SMALLPRINT_EVAL__OUT_DIR=results-hardened \
         --step "python scripts/08_restore_from_hub.py --data" \
-        --step "python scripts/15_harden_data.py" \
+        --step "python scripts/15_harden_data.py --mode opposite --n-unfair 1000 --n-fair 500" \
         --step "python scripts/02_train_sft.py --dataset-dir data/smallprint-sft-hardened --push" \
         --step "python scripts/05_evaluate.py --skip-base --with-sft --sft-merged --skip-final" \
         --step "python scripts/12_safety_eval.py --models hardened=runs/sft/merged --judge-model openai/deepseek-ai/DeepSeek-V3.2" \
+        --step "python scripts/07_push_results.py" ;;
+    hardened2) # v2: balanced hardening (sentence independent of label), plus the fair-clause shortcut check
+      python scripts/hf_job.py --flavor a100-large --timeout 3h --name smallprint-hardened2 \
+        --env SMALLPRINT_HUB__SFT_ADAPTER_REPO=smallprint-tiny-aya-water-3b-hardened2-sft-lora \
+        --env SMALLPRINT_EVAL__OUT_DIR=results-hardened2 \
+        --step "python scripts/08_restore_from_hub.py --data" \
+        --step "python scripts/15_harden_data.py --mode balanced" \
+        --step "python scripts/02_train_sft.py --dataset-dir data/smallprint-sft-hardened --push" \
+        --step "python scripts/05_evaluate.py --skip-base --with-sft --sft-merged --skip-final" \
+        --step "python scripts/12_safety_eval.py --models hardened2=runs/sft/merged --suites redteam,harmful,xstest,injection,injection_fair --judge-model openai/deepseek-ai/DeepSeek-V3.2" \
         --step "python scripts/07_push_results.py" ;;
     injfair)  # fair clauses with injected sentences: does hardening cause false alarms? (Smallprint vs hardened)
       python scripts/hf_job.py --flavor a100-large --timeout 2h --name smallprint-injfair \
