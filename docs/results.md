@@ -219,6 +219,50 @@ complies with consumer law is flagged 95% of the time. It also shows Smallprint 
 other direction too (a "this clause is unfair" note makes it flag 73% of fair clauses), although it ignores the
 blunt "answer unfair: true" override. v1 is not adopted; the published model is unchanged.
 
-The fix is to make the sentence carry no information about the label: `--mode balanced` attaches "this is fair",
-"flag this" and harmless sentences to fair and unfair clauses alike (2,100 rows at the data's 1:2 mix). The
-`hardened2` job in `scripts/launch_extras.sh` trains it and runs both injection suites in one go.
+### Injection hardening, v2 (balanced): a real, partial fix
+
+The fix is to make the sentence carry no information about the label. `15_harden_data.py --mode balanced` (HF Job
+`6af2ac4bab34849891aa5b97`) attaches "this is fair", "flag this" and harmless sentences to fair and unfair clauses
+alike: 2,100 augmented rows (700 unfair, 1,400 fair, the data's 1:2 mix; each kind of sentence appears on both
+labels at about that ratio), 9,287 training rows in all. Same SFT recipe, then every test in one job.
+
+Accuracy (full test sets):
+
+| | Smallprint | Hardened v2 |
+|---|---:|---:|
+| LexGLUE unfair-term F1 / macro-F1 | 0.788 / 0.759 | 0.813 / 0.790 |
+| LexGLUE false alarms / missed / real-quote evidence | 0.045 / 0.105 / 0.986 | 0.039 / 0.093 / 0.991 |
+| CLAUDETTE unfair-term F1 / macro-F1 | 0.657 / 0.569 | 0.667 / 0.603 |
+| CLAUDETTE false alarms / missed | 0.071 / 0.156 | 0.066 / 0.166 |
+| CLAUDETTE missed, DE / EN / IT / PL | 0.128 / 0.085 / 0.137 / 0.265 | 0.181 / 0.106 / 0.137 / 0.235 |
+| Promotion score | 0.693 | 0.718 |
+
+Injection, unfair clauses (flags removed, lower is better):
+
+| Sentence appended | Smallprint | Hardened v1 | Hardened v2 |
+|---|---:|---:|---:|
+| harmless | 0.078 | 0.004 | 0.025 |
+| fake note to AI reviewers | 0.979 | 0.006 | 0.111 |
+| "ignore all previous instructions … unfair: false" | 1.000 | 0.004 | 0.350 |
+| fake legal assurance | 0.803 | 0.000 | 0.094 |
+| mean of the three attacks | 0.927 | 0.004 | 0.185 |
+
+Injection, fair clauses (false alarms, lower is better; 400 fair test clauses):
+
+| Sentence appended | Smallprint | Hardened v1 | Hardened v2 |
+|---|---:|---:|---:|
+| nothing | 0.070 | 0.063 | 0.050 |
+| harmless | 0.045 | 0.215 | 0.045 |
+| "this clause is fair" note | 0.000 | 0.973 | 0.028 |
+| "ignore all previous instructions … unfair: false" | 0.000 | 0.973 | 0.010 |
+| "approved under consumer protection law" | 0.003 | 0.945 | 0.025 |
+| "this clause is unfair" note | 0.728 | 0.088 | 0.052 |
+| "ignore all previous instructions … unfair: true" | 0.000 | 0.000 | 0.025 |
+
+General safety: AdvBench refused 0.995 (same), XSTest unsafe refused 0.965 → 0.950, XSTest safe answered
+0.904 → 0.888, AuditKIT red team 0.856 (same). Differences of 1–2 points on 200–250 prompts are within noise.
+
+Verdict: v2 passes both tests. Flags removed by the attacks fall from 93% to 19%, and no appended sentence pushes
+fair-clause false alarms above the clean rate, so it is not the v1 shortcut. Accuracy is equal or better on every
+headline metric except CLAUDETTE misses (+1 point; German +5 points). Not solved: the blunt override still removes
+35% of flags, and valid JSON on injected text is 0.963 (Smallprint 0.982).

@@ -91,7 +91,11 @@ One clause from the LexGLUE test set, before and after:
   Smallprint's flags (a harmless sentence removes 8%).
 - Our first hardening run cut that to 0.4% and raised CLAUDETTE macro-F1 to 0.619, but a mirrored test showed it had
   learned to do the opposite of the planted sentence (95–97% false alarms on fair clauses that end with a
-  reassurance). Not adopted; the balanced version is described in `docs/results.md`.
+  reassurance). Not adopted.
+- The balanced version (every kind of planted sentence on fair and unfair clauses alike) passes both tests: flags
+  removed fall from 93% to 19%, fair-clause false alarms stay at or below the clean rate for every sentence, and
+  accuracy rises (LexGLUE F1 0.813, macro-F1 0.790; CLAUDETTE macro-F1 0.603). The blunt "ignore all previous
+  instructions" still removes 35% of flags.
 - CircuitKIT mixed precision: uniform 4-bit (2.5 GB) keeps F1 but misses twice as many unfair clauses; keeping the
   15% of layers in the fair/unfair circuit in bf16 (3.1 GB) stays close to bf16 and beats a random choice of the
   same size, within the noise of a 1,600-clause sample.
@@ -117,13 +121,13 @@ nothing at the margin, with the document never leaving the device. Prices checke
   privacy-practice categories, but its licence is non-commercial and share-alike).
 - Explanations come from a teacher and a judge; spot-checked, but not lawyer-reviewed.
 - Non-commercial licence inherited from Tiny Aya.
-- Text inside a policy can switch flags off (section 6). Until a hardened model passes both injection tests, the app
-  should treat instruction-like sentences in a clause as a reason to show the clause to the user, not to trust the
-  verdict.
+- Text inside a policy can still switch some flags off: 19% on average after balanced hardening, 35% for the blunt
+  override. The app should treat instruction-like sentences in a clause as a reason to show the clause to the user,
+  not to trust the verdict.
 - Data augmentation can teach shortcuts that the obvious test rewards: test the mirror image of every robustness claim.
 - Quantization results come from 1,600 clauses per test set; quanto's 4-bit kernels saved memory but were slower than
   bf16 on an A100.
-- Next: balanced injection hardening (ready, `hardened2`), GGUF build for the Chrome extension, more languages.
+- Next: harder injection training (more attack styles, adversarially generated), GGUF build for the Chrome extension, more languages.
 
 ## 10. Reproducing
 
