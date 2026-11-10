@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch the follow-up HF Jobs suggested by the Lexsi team (global, safety, quant; hardened is opt-in). Needs HF_TOKEN in the environment
-# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant|hardened|injfair|hardened2 ...]
+# (Colab secret) or a prior `hf auth login`. Run from the repo root:  bash scripts/launch_extras.sh [global|safety|quant|hardened|injfair|hardened2|publish2 ...]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 which=("${@:-global safety quant}")
@@ -55,6 +55,11 @@ for job in ${which[@]}; do
         --step "python scripts/08_restore_from_hub.py --data --sft" \
         --step "python scripts/12_safety_eval.py --models smallprint,hardened=runs/sft/merged --suites injection_fair --no-judge" \
         --step "python scripts/07_push_results.py" ;;
+    publish2) # make hardened v2 the public model: tag the old one v1-sft, merge, push, restart the Space
+      python scripts/hf_job.py --flavor a10g-small --timeout 1h --name smallprint-publish2 \
+        --env SMALLPRINT_HUB__SFT_ADAPTER_REPO=smallprint-tiny-aya-water-3b-hardened2-sft-lora \
+        --step "python scripts/08_restore_from_hub.py --sft" \
+        --step "python scripts/16_publish_hardened.py" ;;
     *) echo "unknown job: $job" >&2; exit 1 ;;
   esac
 done
