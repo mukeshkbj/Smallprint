@@ -230,7 +230,7 @@ Accuracy (full test sets):
 
 | | Smallprint | Hardened v2 |
 |---|---:|---:|
-| LexGLUE unfair-term F1 / macro-F1 | 0.788 / 0.759 | 0.813 / 0.790 |
+| LexGLUE unfair-term F1 / macro-F1 | 0.788 / 0.759 | 0.812 / 0.790 |
 | LexGLUE false alarms / missed / real-quote evidence | 0.045 / 0.105 / 0.986 | 0.039 / 0.093 / 0.991 |
 | CLAUDETTE unfair-term F1 / macro-F1 | 0.657 / 0.569 | 0.667 / 0.603 |
 | CLAUDETTE false alarms / missed | 0.071 / 0.156 | 0.066 / 0.166 |

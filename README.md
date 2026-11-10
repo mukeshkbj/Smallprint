@@ -12,7 +12,8 @@ and Data Curation**, problem statements 1 (regulated-domain assistant), 5 (struc
 answers), 4 (multilingual), 9 (long documents) and 2 (replacing a closed-model API).
 
 - **Demo:** [huggingface.co/spaces/mukeshkbj/smallprint-demo](https://huggingface.co/spaces/mukeshkbj/smallprint-demo) (ZeroGPU)
-- **Model:** [mukeshkbj/smallprint-tiny-aya-water-3b](https://huggingface.co/mukeshkbj/smallprint-tiny-aya-water-3b)
+- **Model:** [mukeshkbj/smallprint-tiny-aya-water-3b](https://huggingface.co/mukeshkbj/smallprint-tiny-aya-water-3b):
+  `main` is the injection-hardened model (10 Nov); the plain SFT model behind the tables below is tag `v1-sft`
 - **Data:** [smallprint-clauses-4lang](https://huggingface.co/datasets/mukeshkbj/smallprint-clauses-4lang), [smallprint-eval](https://huggingface.co/datasets/mukeshkbj/smallprint-eval) (test sets + results)
 
 ```json
@@ -73,7 +74,7 @@ All tables, with caveats, are in [`results/comparisons.md`](results/comparisons.
   by the three test attacks fell from 93% to 19% (fake reviewer note 98% → 11%, fake legal approval 80% → 9%, the
   blunt "ignore all previous instructions" 100% → 35%), and false alarms on fair clauses stay at or below the
   normal rate whatever sentence is appended (all ≤ 5.3%, vs 73% for Smallprint after a "this clause is unfair"
-  note). Accuracy went up, not down: LexGLUE F1 0.788 → 0.813, macro-F1 0.759 → 0.790; CLAUDETTE F1 0.657 →
+  note). Accuracy went up, not down: LexGLUE F1 0.788 → 0.812, macro-F1 0.759 → 0.790; CLAUDETTE F1 0.657 →
   0.667, macro-F1 0.569 → 0.603 (misses 15.6% → 16.6%). General safety unchanged within noise (AdvBench 99.5%
   refused for both; XSTest unsafe refused 96.5% → 95.0%).
 - **Mixed-precision quantization with CircuitKIT.** 4-bit weights shrink the model from 6.7 GB to 2.5 GB

@@ -94,7 +94,7 @@ One clause from the LexGLUE test set, before and after:
   reassurance). Not adopted.
 - The balanced version (every kind of planted sentence on fair and unfair clauses alike) passes both tests: flags
   removed fall from 93% to 19%, fair-clause false alarms stay at or below the clean rate for every sentence, and
-  accuracy rises (LexGLUE F1 0.813, macro-F1 0.790; CLAUDETTE macro-F1 0.603). The blunt "ignore all previous
+  accuracy rises (LexGLUE F1 0.812, macro-F1 0.790; CLAUDETTE macro-F1 0.603). The blunt "ignore all previous
   instructions" still removes 35% of flags.
 - CircuitKIT mixed precision: uniform 4-bit (2.5 GB) keeps F1 but misses twice as many unfair clauses; keeping the
   15% of layers in the fair/unfair circuit in bf16 (3.1 GB) stays close to bf16 and beats a random choice of the
