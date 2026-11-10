@@ -9,6 +9,7 @@ says the model couldn't be loaded.
 Usage:
   python scripts/10_deploy_space.py              # private Space (default)
   python scripts/10_deploy_space.py --public
+  python scripts/10_deploy_space.py --public --hardware t4-small --sleep-time 900   # without PRO
 """
 
 from __future__ import annotations
@@ -31,7 +32,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config")
     ap.add_argument("--public", action="store_true")
-    ap.add_argument("--hardware", default="zero-a10g", help="zero-a10g = ZeroGPU")
+    ap.add_argument("--hardware", default="zero-a10g", help="zero-a10g = ZeroGPU (needs PRO), t4-small, l4x1, cpu-basic")
+    ap.add_argument("--sleep-time", type=int, help="seconds idle before a paid Space sleeps (e.g. 900)")
     args = ap.parse_args()
     cfg = load_config(args.config)
     hub = cfg["hub"]
@@ -44,6 +46,9 @@ def main() -> None:
     api.create_repo(repo, repo_type="space", space_sdk="gradio", space_hardware=args.hardware,
                     private=not args.public, exist_ok=True)
     api.add_space_variable(repo, "SMALLPRINT_MODEL", hub["model_repo"])
+    runtime = api.get_space_runtime(repo)
+    if runtime.requested_hardware != args.hardware or args.sleep_time:
+        api.request_space_hardware(repo, hardware=args.hardware, sleep_time=args.sleep_time)
     # Pin the code to this commit, so every deploy changes requirements.txt and the Space
     # rebuilds with exactly the code that was tested (a bare git URL would stay cached).
     sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()

@@ -5,8 +5,14 @@ from __future__ import annotations
 
 import os
 
-import spaces  # no-op outside ZeroGPU
 import torch
+
+try:  # ZeroGPU Spaces have the `spaces` package; on a dedicated GPU or CPU the decorator is not needed
+    import spaces
+    gpu = spaces.GPU
+except ImportError:
+    def gpu(*args, **kwargs):
+        return args[0] if args and callable(args[0]) else (lambda fn: fn)
 
 import gradio as gr
 
@@ -19,12 +25,23 @@ MAX_CLAUSES = int(os.environ.get("SMALLPRINT_MAX_CLAUSES", "250"))
 MAX_GPU_SECONDS = int(os.environ.get("SMALLPRINT_MAX_GPU_SECONDS", "120"))
 
 # Load once at start-up. On ZeroGPU `.to("cuda")` here only registers the weights;
-# the GPU is attached inside the @spaces.GPU call. bf16 is native on ZeroGPU hardware.
+# the GPU is attached inside the @gpu call. bf16 where the GPU has it natively (A10G, L4, A100),
+# fp16 on older GPUs such as the T4, fp32 on CPU; SMALLPRINT_DTYPE overrides.
 _device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _dtype():
+    forced = os.environ.get("SMALLPRINT_DTYPE")
+    if forced:
+        return getattr(torch, forced)
+    if _device != "cuda":
+        return torch.float32
+    return torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
+
+
 LOAD_ERROR = None
 try:
-    MODEL = HFClauseModel(MODEL_ID, batch_size=16, device_map=None, token=os.environ.get("HF_TOKEN"),
-                          dtype=torch.bfloat16 if _device == "cuda" else torch.float32)
+    MODEL = HFClauseModel(MODEL_ID, batch_size=16, device_map=None, token=os.environ.get("HF_TOKEN"), dtype=_dtype())
     MODEL.model.to(_device)
 except Exception as e:  # e.g. the model repo is still private and the Space has no token
     MODEL, LOAD_ERROR = None, f"{type(e).__name__}: {str(e).splitlines()[0][:300]}"
@@ -55,7 +72,7 @@ EXAMPLE = """Welcome to Example Cloud. These Terms apply to your use of our stor
 7. Support. You can contact our support team by email and we aim to reply within two working days."""
 
 
-@spaces.GPU(duration=gpu_seconds)
+@gpu(duration=gpu_seconds)
 def _analyse_on_gpu(text: str):
     clauses = split_clauses(text or "")[:MAX_CLAUSES]
     raws = MODEL(clauses)
