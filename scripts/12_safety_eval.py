@@ -24,11 +24,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smallprint.config import load_config  # noqa: E402
 from smallprint.data import read_jsonl, write_jsonl  # noqa: E402
-from smallprint.safety import (ATTACKS, JUDGE_PROMPT, injection_cases, injection_metrics,  # noqa: E402
-                               keyword_label, load_advbench, load_xstest, parse_judge, refusal_metrics)
+from smallprint.safety import (ATTACKS, INJECTIONS_FLAG, JUDGE_PROMPT, injection_cases,  # noqa: E402
+                               injection_cases_fair, injection_fair_metrics, injection_metrics, keyword_label,
+                               load_advbench, load_xstest, parse_judge, refusal_metrics)
 from smallprint.schema import parse_output  # noqa: E402
 
-SUITES = ("redteam", "harmful", "xstest", "injection")
+SUITES = ("redteam", "harmful", "xstest", "injection")  # also: injection_fair (opt-in)
 REDTEAM = {"prompt_injection": ["keyword", "injection_success"], "jailbreak": ["keyword", "injection_success"],
            "encoding": ["keyword", "injection_success"], "refusal": ["refusal"]}
 
@@ -160,6 +161,19 @@ def run_model(name: str, repo: str, args, cfg: dict, judge, out: Path) -> dict:
         print(f"{name} injection: clean flag rate {met['clean_flag_rate']:.3f}, "
               f"mean attack success {met['mean_attack_success']:.3f}", flush=True)
 
+    if "injection_fair" in args.suites:
+        work = Path(cfg["data"]["work_dir"]) / "eval"
+        rows = []
+        for f in ("lexglue_test.jsonl", "claudette_ml_test.jsonl"):
+            rows += list(read_jsonl(work / f))
+        cases = injection_cases_fair(rows, n=args.n_fair, seed=cfg["seed"])
+        flagged = [parse_output(o).flagged for o in m([c["text"] for c in cases])]
+        met = injection_fair_metrics(cases, flagged)
+        results["injection_fair"] = met
+        write_jsonl(out / f"{name}__injection_fair.responses.jsonl",
+                    [{**c, "flagged": f} for c, f in zip(cases, flagged)])
+        print(f"{name} injection_fair: {met}", flush=True)
+
     (out / f"{name}.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
     del m
     gc.collect()
@@ -194,7 +208,10 @@ def summary_md(all_results: dict[str, dict]) -> str:
               row("Unfair clauses flagged, harmless sentence added", lambda r: r["injection"]["control.flag_rate"])]
     lines += [row(f"Injection '{a}': flags removed (lower is better)", lambda r, a=a: r["injection"][f"{a}.attack_success"])
               for a in ATTACKS]
-    lines += [row("Injection: mean flags removed (lower is better)", lambda r: r["injection"]["mean_attack_success"]), "",
+    lines += [row("Injection: mean flags removed (lower is better)", lambda r: r["injection"]["mean_attack_success"])]
+    lines += [row(f"Fair clauses flagged (false alarms), {v}", lambda r, v=v: r["injection_fair"][f"{v}.false_alarm_rate"])
+              for v in ["clean", "control", *ATTACKS, *INJECTIONS_FLAG]]
+    lines += ["",
               "Flags removed = share of the unfair clauses a model flagged clean that it no longer flags once the "
               "injection is appended. Red-team pass rates are AuditKIT's built-in detectors; refusal labels come "
               "from an LLM judge with a keyword fallback (see the *.responses.jsonl files)."]
@@ -208,6 +225,7 @@ def main() -> None:
     ap.add_argument("--suites", default=",".join(SUITES))
     ap.add_argument("--n-harmful", type=int, default=200)
     ap.add_argument("--max-clauses", type=int, default=0, help="limit unfair clauses for the injection suite")
+    ap.add_argument("--n-fair", type=int, default=400, help="fair clauses sampled for the injection_fair suite")
     ap.add_argument("--max-new-tokens", type=int, default=256)
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--no-judge", action="store_true")

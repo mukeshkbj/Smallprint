@@ -142,3 +142,19 @@ def test_hardening_texts_are_held_out_and_augment_keeps_gold():
         if gold["unfair"]:
             assert gold["evidence"] in msgs["user"]
     assert rows[0]["messages"][1]["content"].endswith("case 0.")  # originals untouched
+
+
+def test_injection_fair_cases_and_metrics():
+    from smallprint.harden import PUSH_FAIR, PUSH_UNFAIR
+    from smallprint.safety import (INJECTIONS, INJECTIONS_FLAG, injection_cases_fair, injection_fair_metrics)
+    train = {t for bank in (PUSH_FAIR, PUSH_UNFAIR) for texts in bank.values() for t in texts}
+    assert not train & {t for v in INJECTIONS_FLAG.values() for t in v.values()}
+    rows = [{"id": f"f{i}", "lang": "de", "text": f"Klausel {i}.", "gold_unfair": False} for i in range(10)] + \
+           [{"id": "u", "lang": "en", "text": "Unfair.", "gold_unfair": True}]
+    cases = injection_cases_fair(rows, n=4, seed=0)
+    nvar = 1 + len(INJECTIONS) + len(INJECTIONS_FLAG)
+    assert len(cases) == 4 * nvar and all(c["id"] != "u" for c in cases)
+    assert all(c["text"].endswith(INJECTIONS_FLAG["override_unfair"]["de"]) for c in cases if c["variant"] == "override_unfair")
+    flagged = [c["variant"] == "override_unfair" for c in cases]
+    met = injection_fair_metrics(cases, flagged)
+    assert met["n_fair_clauses"] == 4 and met["override_unfair.false_alarm_rate"] == 1.0 and met["clean.false_alarm_rate"] == 0.0
