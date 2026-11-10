@@ -8,10 +8,13 @@ every flag with an exact quote and one plain sentence. It handles English, Germa
 small enough to run on a laptop, so the documents never leave the user's device.
 
 Entry for the [Lexsi AI Safety and Alignment Hackathon](https://hackathon.lexsi.ai/), **Track 1: Fine-tuning
-and Data Curation**, problem statements 1 (regulated-domain assistant), 5 (structured output), 3 (grounded
+and Data Curation** and **Track 2: AI Red Teaming, Safety and Alignment** (in-document prompt injection, found and
+hardened against), problem statements 1 (regulated-domain assistant), 5 (structured output), 3 (grounded
 answers), 4 (multilingual), 9 (long documents) and 2 (replacing a closed-model API).
 
-- **Demo:** [huggingface.co/spaces/mukeshkbj/smallprint-demo](https://huggingface.co/spaces/mukeshkbj/smallprint-demo) (ZeroGPU)
+- **Write-up:** [docs/article.md](docs/article.md) (the story and every headline number); details in [docs/writeup.md](docs/writeup.md) and [docs/results.md](docs/results.md)
+- **Collections:** [Smallprint models](https://huggingface.co/collections/mukeshkbj/smallprint-models-6af2f11c5c9d72c442d2211a), [Smallprint datasets](https://huggingface.co/collections/mukeshkbj/smallprint-datasets-6af2f11da19cc71ea626445a)
+- **Demo:** [huggingface.co/spaces/mukeshkbj/smallprint-demo](https://huggingface.co/spaces/mukeshkbj/smallprint-demo) 
 - **Model:** [mukeshkbj/smallprint-tiny-aya-water-3b](https://huggingface.co/mukeshkbj/smallprint-tiny-aya-water-3b):
   `main` is the injection-hardened model (10 Nov); the plain SFT model behind the tables below is tag `v1-sft`
 - **Data:** [smallprint-clauses-4lang](https://huggingface.co/datasets/mukeshkbj/smallprint-clauses-4lang), [smallprint-eval](https://huggingface.co/datasets/mukeshkbj/smallprint-eval) (test sets + results)
@@ -179,22 +182,21 @@ Every script accepts `--config`. Every config key can be overridden with `SMALLP
 | `smallprint/roi.py` | Closed API vs self-hosted vs on-device cost table |
 | `smallprint/safety.py`, `harden.py` | Safety suites (red team, AdvBench, XSTest, in-clause injection) and injection-hardening data |
 | `scripts/01..11` | The pipeline, HF Jobs launcher, restore/promote, Space deploy |
-| `scripts/12..15` | Safety eval, CircuitKIT quantization, comparison page, injection-hardened data |
+| `scripts/12..17` | Safety eval, CircuitKIT quantization, comparison page, injection-hardened data, publish, collections |
 | `space/` | Gradio demo for Hugging Face Spaces |
 | `docs/` | Plan, abstract, write-up, data licences |
 | `tests/` | Unit tests plus offline end-to-end runs of CuratorKIT and AuditKIT |
 
 ## Submission checklist
 
-- [ ] Public deployment: HF Space `smallprint-demo` (`space/`)
-- [ ] Before/after metrics, more than one: `results/summary.md`
-- [ ] Write-up (metrics and why, approach, datasets/tasks/models rationale, why it's better in use): `docs/writeup.md`
-- [ ] ROI comparison: `results/roi.md`
-- [ ] Abstract under 500 words: `docs/abstract.md`
-- [ ] Public HF model collection: `smallprint-tiny-aya-water-3b` (+ SFT adapter)
-- [ ] Public HF dataset collection: `smallprint-clauses-4lang`, `smallprint-preferences`, `smallprint-eval`
-- [ ] GitHub repo with reproducibility notes: this README
-- [ ] Registration email, Track 1, problem statements 1, 5, 3, 4, 9, 2
+- [x] Abstract under 500 words: [`docs/abstract.md`](docs/abstract.md)
+- [x] Public HF model collection (model, every adapter, DPO model, demo Space): [Smallprint models](https://huggingface.co/collections/mukeshkbj/smallprint-models-6af2f11c5c9d72c442d2211a)
+- [x] Public HF dataset collection (training data, test sets, predictions, every result): [Smallprint datasets](https://huggingface.co/collections/mukeshkbj/smallprint-datasets-6af2f11da19cc71ea626445a)
+- [x] Write-up: [`docs/article.md`](docs/article.md), with [`docs/writeup.md`](docs/writeup.md) and [`docs/results.md`](docs/results.md) (HF community articles are not available on this account)
+- [x] Before/after metrics: [`results/summary.md`](results/summary.md), [`results/comparisons.md`](results/comparisons.md); ROI: [`results/roi.md`](results/roi.md)
+- [x] Public demo: [smallprint-demo](https://huggingface.co/spaces/mukeshkbj/smallprint-demo)
+- [x] GitHub repo with reproducibility notes: this README (scripts 00–17, `scripts/launch_extras.sh`)
+- [ ] Submission form (deadline Nov 15, 23:59 AoE = Mon 16 Nov, 11:59 UK)
 
 ## Reproducibility
 

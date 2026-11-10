@@ -1,9 +1,3 @@
----
-title: "Smallprint: a 3B on-device model that reads the small print, and the safety fix that almost fooled us"
-authors:
-- user: mukeshkbj
----
-
 # Smallprint: a 3B on-device model that reads the small print, and the safety fix that almost fooled us
 
 Almost nobody reads Terms of Service or privacy policies, yet they routinely let a provider change the terms

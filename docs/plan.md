@@ -1,7 +1,7 @@
 # 7-day plan
 
-Deadline: **Saturday 14 Nov, 23:59 AoE**, which is **Sunday 15 Nov, 11:59 UK time**. Aim to submit on
-Saturday evening and keep Sunday morning as buffer. Only the last submission counts, so submit early
+Deadline: **Sunday 15 Nov, 23:59 AoE**, which is **Monday 16 Nov, 11:59 UK time** (moved from 14 Nov; check
+hackathon.lexsi.ai/submit). Aim to submit by Saturday evening and keep Sunday as buffer. Only the last submission counts, so submit early
 and resubmit.
 
 Lexsi office hours: daily 8–9 PM IST = **14:30–15:30 UK** on Discord.
